@@ -2,26 +2,170 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Brand CSS variables ── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --brand-primary:   #E8622A;
+  --brand-secondary: #C8922A;
+  --brand-accent:    #FF4500;
+  --bg-dark:         #0F0A05;
+  --bg-card:         #1A1208;
+  --bg-card-hover:   #2A1E10;
+  --text-primary:    #F5E6C8;
+  --text-secondary:  #A08060;
+  --text-muted:      #5C4030;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+html { scroll-behavior: smooth; }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text-primary);
+  background-color: #FBF7F2;
+  font-family: var(--font-cairo), Arial, sans-serif;
+  overflow-x: hidden;
 }
 
+/* ── Custom scrollbar ── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-card); }
+::-webkit-scrollbar-thumb { background: #E8622A55; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #E8622AAA; }
+
+/* ── Keyframes ── */
+@keyframes ember-rise {
+  0%   { transform: translateY(0)      translateX(0)                        scale(1);   opacity: 0.9; }
+  60%  { opacity: 0.5; }
+  100% { transform: translateY(-130px) translateX(var(--ember-drift, 20px)) scale(0.1); opacity: 0;   }
+}
+
+@keyframes flame-flicker {
+  0%, 100% { transform: scaleY(1)    scaleX(1)    rotate(-1deg);  }
+  25%       { transform: scaleY(1.07) scaleX(0.97) rotate(1.5deg); }
+  75%       { transform: scaleY(0.95) scaleX(1.03) rotate(-1.5deg); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(1);    }
+  50%       { opacity: 0.65; transform: scale(1.08); }
+}
+
+@keyframes shimmer-slide {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+@keyframes float-up {
+  0%        { transform: translateY(0);    opacity: 1; }
+  100%      { transform: translateY(-32px); opacity: 0; }
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes fade-slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes flowing-gradient {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes count-pop {
+  0%   { transform: scale(0.7); opacity: 0; }
+  60%  { transform: scale(1.1); }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes ember-float {
+  0%   { transform: translateY(0) translateX(0) rotate(0deg);   opacity: 0.8; }
+  50%  { transform: translateY(-20px) translateX(8px) rotate(180deg); opacity: 0.4; }
+  100% { transform: translateY(-40px) translateX(-4px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+@keyframes step-appear {
+  from { opacity: 0; transform: translateY(32px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes slow-ember-rise {
+  0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0.7; }
+  80%  { opacity: 0.25; }
+  100% { transform: translateY(-280px) translateX(var(--ember-drift, 25px)) scale(0.2); opacity: 0; }
+}
+
+@keyframes slow-pulse-glow {
+  0%, 100% { transform: scale(1);    opacity: 0.09; }
+  50%       { transform: scale(1.12); opacity: 0.18; }
+}
+
+@keyframes rotating-border-glow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes icon-breathe {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.14); }
+}
+
+@keyframes icon-bounce {
+  0%, 100% { transform: translateY(0); }
+  35%       { transform: translateY(-5px); }
+  55%       { transform: translateY(-2px); }
+  70%       { transform: translateY(-4px); }
+}
+
+/* ── Fixed decoration — mobile scaling ── */
+@media (max-width: 768px) {
+  .deco-tr { width: 154px !important; opacity: 0.18 !important; }
+  .deco-bl { width: 140px !important; opacity: 0.15 !important; }
+  .deco-br { width: 126px !important; opacity: 0.15 !important; }
+  .deco-tl { width: 112px !important; opacity: 0.13 !important; }
+}
+
+/* ── Utility classes ── */
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .text-balance { text-wrap: balance; }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  /* Animated gradient text */
+  .text-fire-gradient {
+    background: linear-gradient(135deg, #F5E6C8 0%, #E8622A 50%, #C8922A 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer-slide 4s linear infinite;
+  }
+
+  /* Warm card glow on hover */
+  .hover-glow:hover {
+    box-shadow: 0 0 24px #E8622A22, 0 8px 32px #00000066;
+  }
+
+  /* Fire button */
+  .btn-fire {
+    background: linear-gradient(135deg, #E8622A 0%, #C8922A 100%);
+    transition: all 0.2s;
+  }
+  .btn-fire:hover {
+    background: linear-gradient(135deg, #FF7340 0%, #E8A83A 100%);
+    box-shadow: 0 8px 24px #E8622A44;
+    transform: translateY(-1px);
+  }
+  .btn-fire:active { transform: scale(0.97); }
 }

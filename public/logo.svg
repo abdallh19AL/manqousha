@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 52" width="220" height="52">
+  <defs>
+    <linearGradient id="fire-grad" x1="0%" y1="100%" x2="80%" y2="0%">
+      <stop offset="0%"   stop-color="#E8622A"/>
+      <stop offset="60%"  stop-color="#C8922A"/>
+      <stop offset="100%" stop-color="#FFD080"/>
+    </linearGradient>
+    <linearGradient id="text-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#E8622A"/>
+      <stop offset="100%" stop-color="#C8922A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Outer flame -->
+  <path d="
+    M22 46
+    C 12 46 7 38 7 31
+    C 7 24 12 18 17 13
+    C 15 18 15 23 18 27
+    C 19 20 22 15 26 12
+    C 24 18 26 24 29 28
+    C 29 23 31 19 34 17
+    C 36 22 37 29 36 35
+    C 34 41 29 46 23 46 Z
+  " fill="url(#fire-grad)"/>
+
+  <!-- Inner bright core -->
+  <path d="
+    M22 42
+    C 18 42 15 39 15 35
+    C 15 31 18 28 20 25
+    C 19.5 28 19.5 31 21 33
+    C 22 30 24 27.5 25.5 26
+    C 25 29 25.5 33 25 36
+    C 24.5 39 23 42 22 42 Z
+  " fill="#FFE8A0" opacity="0.75"/>
+
+  <!-- Tiny tip glow -->
+  <ellipse cx="22" cy="16" rx="3" ry="4" fill="#FFD080" opacity="0.4"/>
+
+  <!-- Restaurant name — line 1 -->
+  <text
+    x="214" y="24"
+    font-family="'Cairo','Segoe UI Arabic','Tahoma',Arial,sans-serif"
+    font-size="18"
+    font-weight="900"
+    fill="url(#text-grad)"
+    text-anchor="end"
+    direction="rtl"
+  >مناقيش</text>
+
+  <!-- Restaurant name — line 2 -->
+  <text
+    x="214" y="44"
+    font-family="'Cairo','Segoe UI Arabic','Tahoma',Arial,sans-serif"
+    font-size="18"
+    font-weight="700"
+    fill="#C8922A"
+    text-anchor="end"
+    direction="rtl"
+  >و نار</text>
+</svg>
