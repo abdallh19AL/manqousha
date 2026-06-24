@@ -3423,7 +3423,7 @@ export default function AdminPage() {
     : "غير متصل";
 
   const TAB_LABELS: Record<"orders" | "products" | "combos" | "zones" | "offers" | "points" | "announcements", string> = {
-    orders: "الطلبات", products: "المنتجات", combos: "الكومبو", zones: "التوصيل", offers: "العروض", points: "النقاط", announcements: "الإعلانات",
+    orders: "الطلبات", products: "المنتجات", combos: "العروض العائلية", zones: "التوصيل", offers: "العروض", points: "النقاط", announcements: "الإعلانات",
   };
 
   return (

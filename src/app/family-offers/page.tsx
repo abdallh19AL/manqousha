@@ -132,7 +132,7 @@ function ComboModal({
             className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full mb-3"
             style={{ background: "#FFF4EF", color: C.primary, border: `1px solid ${C.primary}33` }}
           >
-            🍕 عرض كومبو
+            🍕 عرض عائلي
           </span>
           <h2 className="text-2xl font-black mb-1" style={{ color: C.text }}>
             {combo.name}
@@ -315,7 +315,7 @@ function ComboCard({
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-export default function CombosPage() {
+export default function FamilyOffersPage() {
   const [combos,      setCombos]      = useState<ComboDealWithSteps[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [activeCombo, setActiveCombo] = useState<ComboDealWithSteps | null>(null);
@@ -333,7 +333,7 @@ export default function CombosPage() {
       .eq("is_active", true)
       .order("sort_order")
       .then(({ data, error }) => {
-        if (error) { console.error("Failed to fetch combos:", error); }
+        if (error) { console.error("Failed to fetch family offers:", error); }
         else if (data) {
           const sorted = (data as ComboDealWithSteps[]).map((combo) => ({
             ...combo,
@@ -365,7 +365,7 @@ export default function CombosPage() {
             🍕 عروض البيتزا
           </span>
           <h1 className="text-3xl font-black mb-2" style={{ color: C.text }}>
-            عروض الكومبو
+            العروض العائلية
           </h1>
           <p className="text-sm" style={{ color: C.muted }}>
             اختر عرضك المفضل وخصص بيتزاتك
