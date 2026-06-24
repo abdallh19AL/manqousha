@@ -63,6 +63,7 @@ export interface CartItem {
   product: Product;
   quantity: number;
   selectedSize?: { label: string; price: number };
+  doughType?: { label: string; extra: number };
   cartKey: string;
 }
 

@@ -61,14 +61,15 @@ export default function ProductCard({ product, offer }: { product: Product; offe
     ? `من ${calcDiscounted(product.sizes[0].price).toFixed(2)}`
     : calcDiscounted(product.price).toFixed(2);
 
-  const handleAdd = (p: Product, selectedSize?: { label: string; price: number }) => {
+  const handleAdd = (p: Product, selectedSize?: { label: string; price: number }, doughType?: { label: string; extra: number }) => {
     if (discountRatio < 1) {
       addItem(
         { ...p, price: calcDiscounted(p.price) },
         selectedSize ? { ...selectedSize, price: calcDiscounted(selectedSize.price) } : undefined,
+        doughType,
       );
     } else {
-      addItem(p, selectedSize);
+      addItem(p, selectedSize, doughType);
     }
     setShowModal(false);
     setAdded(true);

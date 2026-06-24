@@ -6,7 +6,7 @@ import type { CartItem, Product } from "@/types";
 
 interface CartStore {
   items: CartItem[];
-  addItem: (product: Product, selectedSize?: { label: string; price: number }) => void;
+  addItem: (product: Product, selectedSize?: { label: string; price: number }, doughType?: { label: string; extra: number }) => void;
   removeItem: (cartKey: string) => void;
   updateQuantity: (cartKey: string, quantity: number) => void;
   clearCart: () => void;
@@ -19,8 +19,8 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
 
-      addItem: (product, selectedSize) => {
-        const cartKey = `${product.id}:${selectedSize?.label ?? ""}`;
+      addItem: (product, selectedSize, doughType) => {
+        const cartKey = `${product.id}:${selectedSize?.label ?? ""}:${doughType?.label ?? ""}`;
         const existing = get().items.find((i) => i.cartKey === cartKey);
         if (existing) {
           set({
@@ -32,7 +32,7 @@ export const useCartStore = create<CartStore>()(
           set({
             items: [
               ...get().items,
-              { product, quantity: 1, selectedSize, cartKey },
+              { product, quantity: 1, selectedSize, doughType, cartKey },
             ],
           });
         }
@@ -59,7 +59,7 @@ export const useCartStore = create<CartStore>()(
       getTotal: () =>
         get().items.reduce(
           (sum, i) =>
-            sum + (i.selectedSize?.price ?? i.product.price) * i.quantity,
+            sum + ((i.selectedSize?.price ?? i.product.price) + (i.doughType?.extra ?? 0)) * i.quantity,
           0
         ),
 
@@ -68,7 +68,7 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: "manqousha-cart",
-      version: 2,
+      version: 3,
       migrate: (_state, version) => {
         if (version < 2) return { items: [] };
         return _state as { items: CartItem[] };

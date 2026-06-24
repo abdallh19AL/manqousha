@@ -295,9 +295,13 @@ export default function CartPage() {
 
       const { error: itemsErr } = await supabase.from("order_items").insert(
         items.map((i) => {
-          const unitPrice   = i.selectedSize?.price ?? i.product.price;
-          const productName = i.selectedSize
+          const unitPrice = (i.selectedSize?.price ?? i.product.price) + (i.doughType?.extra ?? 0);
+          let productName = i.selectedSize
             ? `${i.product.name} (${i.selectedSize.label})` : i.product.name;
+          if (i.doughType) {
+            productName += ` - ${i.doughType.label}`;
+            if (i.doughType.extra > 0) productName += ` +${i.doughType.extra.toFixed(2)} د.أ`;
+          }
           return {
             order_id:     order.id,
             product_id:   UUID_RE.test(i.product.id) ? i.product.id : null,
@@ -518,7 +522,7 @@ export default function CartPage() {
           style={{ background: C.surface, border: `1px solid ${C.border}` }}
         >
           {items.map((item) => {
-            const unitPrice = item.selectedSize?.price ?? item.product.price;
+            const unitPrice = (item.selectedSize?.price ?? item.product.price) + (item.doughType?.extra ?? 0);
             return (
               <div
                 key={item.cartKey}
@@ -532,6 +536,11 @@ export default function CartPage() {
                   {item.selectedSize && (
                     <p className="text-xs mt-0.5" style={{ color: C.faint }}>
                       {item.selectedSize.label}
+                    </p>
+                  )}
+                  {item.doughType && (
+                    <p className="text-xs mt-0.5" style={{ color: C.faint }}>
+                      {item.doughType.label}{item.doughType.extra > 0 ? ` +${item.doughType.extra.toFixed(2)} د.أ` : ""}
                     </p>
                   )}
                   <p className="font-bold text-xs mt-0.5" style={{ color: C.gold }}>
