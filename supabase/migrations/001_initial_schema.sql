@@ -14,7 +14,7 @@ LANGUAGE sql
 SECURITY DEFINER
 STABLE
 AS $$
-  SELECT COALESCE(auth.jwt() ->> 'email', '') = 'abdallhalmanaseer305@icloud.com'
+  SELECT COALESCE(auth.jwt() ->> 'email', '') = 'marwanalqissi19866@gmail.com'
 $$;
 
 -- ============================================================

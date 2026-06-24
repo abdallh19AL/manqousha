@@ -16,5 +16,5 @@ CREATE POLICY "public_read_settings" ON store_settings FOR SELECT USING (true);
 
 -- Only admin can update
 CREATE POLICY "admin_update_settings" ON store_settings FOR UPDATE USING (
-  (auth.jwt() ->> 'email') = 'abdallhalmanaseer305@icloud.com'
+  (auth.jwt() ->> 'email') = 'marwanalqissi19866@gmail.com'
 );

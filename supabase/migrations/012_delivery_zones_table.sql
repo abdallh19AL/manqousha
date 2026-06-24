@@ -24,5 +24,5 @@ ALTER TABLE delivery_zones ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "public_read_zones" ON delivery_zones FOR SELECT USING (true);
 
 CREATE POLICY "admin_update_zones" ON delivery_zones FOR UPDATE USING (
-  (auth.jwt() ->> 'email') = 'abdallhalmanaseer305@icloud.com'
+  (auth.jwt() ->> 'email') = 'marwanalqissi19866@gmail.com'
 );

@@ -11,7 +11,7 @@ import PageDecorations from "@/components/PageDecorations";
 import { DUMMY_PRODUCTS } from "@/lib/dummy-products";
 import type { OrderStatus, OrderWithItems, Product } from "@/types";
 
-const ADMIN_EMAIL = "abdallhalmanaseer305@icloud.com";
+const ADMIN_EMAIL = "marwanalqissi19866@gmail.com";
 const POLL_MS     = 15_000;
 
 const C = {
