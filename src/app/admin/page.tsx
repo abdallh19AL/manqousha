@@ -9,7 +9,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import PageDecorations from "@/components/PageDecorations";
 import { DUMMY_PRODUCTS } from "@/lib/dummy-products";
-import type { OrderStatus, OrderWithItems, Product } from "@/types";
+import type { OrderStatus, OrderWithItems, Product, ComboDealWithSteps, ComboStep, ComboStepOption } from "@/types";
 
 const ADMIN_EMAIL = "marwanalqissi19866@gmail.com";
 const POLL_MS     = 15_000;
@@ -2795,11 +2795,584 @@ function AnnouncementsPanel() {
 }
 
 /* ════════════════════════════════════════════════════════════
+   Combos Panel
+══════════════════════════════════════════════════════════════ */
+interface ComboForm  { name: string; description: string; price: string; sort_order: string; is_active: boolean; image_url: string; }
+interface StepForm   { title: string; step_order: string; min_select: string; max_select: string; step_type: string; }
+interface OptionForm { label: string; extra_cost: string; }
+
+const BLANK_COMBO_FORM:  ComboForm  = { name: "", description: "", price: "", sort_order: "0", is_active: true,  image_url: "" };
+const BLANK_STEP_FORM:   StepForm   = { title: "", step_order: "1", min_select: "1", max_select: "1", step_type: "pizza" };
+const BLANK_OPTION_FORM: OptionForm = { label: "", extra_cost: "0" };
+
+type ComboLocal = ComboDealWithSteps & { combo_steps: Array<ComboStep & { combo_step_options: ComboStepOption[] }> };
+
+function CombosPanel() {
+  const [combos,          setCombos]          = useState<ComboLocal[]>([]);
+  const [loading,         setLoading]         = useState(true);
+
+  // Combo-level editing
+  const [editingComboId,  setEditingComboId]  = useState<string | "new" | null>(null);
+  const [editComboForm,   setEditComboForm]   = useState<ComboForm>(BLANK_COMBO_FORM);
+  const [deleteComboId,   setDeleteComboId]   = useState<string | null>(null);
+  const [savingCombo,     setSavingCombo]     = useState(false);
+
+  // Image upload
+  const [imageFile,       setImageFile]       = useState<File | null>(null);
+  const [imagePreview,    setImagePreview]    = useState("");
+  const [imageError,      setImageError]      = useState("");
+  const [uploading,       setUploading]       = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Step-level editing (scoped to the open combo)
+  const [editingStepId,   setEditingStepId]   = useState<string | null>(null);  // actual id or null
+  const [addingStepFor,   setAddingStepFor]   = useState<string | null>(null);  // comboId
+  const [editStepForm,    setEditStepForm]    = useState<StepForm>(BLANK_STEP_FORM);
+  const [deleteStepId,    setDeleteStepId]    = useState<string | null>(null);
+  const [savingStep,      setSavingStep]      = useState(false);
+
+  // Option-level editing (scoped to the open step)
+  const [editingOptionId,  setEditingOptionId]  = useState<string | null>(null);
+  const [addingOptionFor,  setAddingOptionFor]  = useState<string | null>(null); // stepId
+  const [editOptionForm,   setEditOptionForm]   = useState<OptionForm>(BLANK_OPTION_FORM);
+  const [deleteOptionId,   setDeleteOptionId]   = useState<string | null>(null);
+  const [savingOption,     setSavingOption]     = useState(false);
+
+  // ── Fetch ──────────────────────────────────────────────────
+  const fetchCombos = useCallback(async () => {
+    const { data } = await supabase
+      .from("combo_deals")
+      .select("*, combo_steps(*, combo_step_options(*))")
+      .order("sort_order");
+    if (data) {
+      setCombos(
+        (data as ComboLocal[]).map((c) => ({
+          ...c,
+          combo_steps: [...c.combo_steps]
+            .sort((a, b) => a.step_order - b.step_order)
+            .map((s) => ({ ...s, combo_step_options: s.combo_step_options ?? [] })),
+        }))
+      );
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchCombos(); }, [fetchCombos]);
+
+  // ── Image helpers ───────────────────────────────────────────
+  const resetImage = () => {
+    setImageFile(null); setImagePreview(""); setImageError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 30 * 1024 * 1024) { setImageError("حجم الصورة يجب أن لا يتجاوز 30 ميغابايت"); e.target.value = ""; return; }
+    setImageError(""); setImageFile(file); setImagePreview(URL.createObjectURL(file));
+  };
+  const uploadImage = async (comboId: string): Promise<string | null> => {
+    if (!imageFile) return null;
+    setUploading(true);
+    const ext  = imageFile.name.split(".").pop() ?? "jpg";
+    const path = `combo-${comboId}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("product-images").upload(path, imageFile);
+    setUploading(false);
+    if (error) { setImageError("فشل رفع الصورة"); return null; }
+    return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+  };
+
+  // ── Combo CRUD ──────────────────────────────────────────────
+  const openNewCombo = () => {
+    setEditingComboId("new"); setEditComboForm(BLANK_COMBO_FORM);
+    setDeleteComboId(null); resetImage();
+    setEditingStepId(null); setAddingStepFor(null);
+    setEditingOptionId(null); setAddingOptionFor(null);
+  };
+  const openEditCombo = (c: ComboLocal) => {
+    setEditingComboId(c.id);
+    setEditComboForm({ name: c.name, description: c.description ?? "", price: c.price.toString(), sort_order: c.sort_order.toString(), is_active: c.is_active, image_url: c.image_url ?? "" });
+    setDeleteComboId(null); resetImage();
+    setEditingStepId(null); setAddingStepFor(null);
+    setEditingOptionId(null); setAddingOptionFor(null);
+  };
+  const cancelCombo = () => { setEditingComboId(null); setDeleteComboId(null); resetImage(); };
+
+  const handleSaveCombo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingCombo(true);
+    const isNew = editingComboId === "new";
+    const payload = {
+      name:        editComboForm.name.trim(),
+      description: editComboForm.description.trim() || null,
+      price:       parseFloat(editComboForm.price),
+      sort_order:  parseInt(editComboForm.sort_order) || 0,
+      is_active:   editComboForm.is_active,
+      image_url:   editComboForm.image_url.trim() || null,
+    };
+
+    let comboId: string;
+    if (isNew) {
+      const { data, error } = await supabase.from("combo_deals").insert(payload).select("id").single();
+      if (error || !data) { setSavingCombo(false); return; }
+      comboId = (data as { id: string }).id;
+    } else {
+      comboId = editingComboId!;
+      await supabase.from("combo_deals").update(payload).eq("id", comboId);
+    }
+
+    if (imageFile) {
+      const url = await uploadImage(comboId);
+      if (url) await supabase.from("combo_deals").update({ image_url: url }).eq("id", comboId);
+      else { setSavingCombo(false); return; }
+    }
+
+    setSavingCombo(false);
+    if (isNew) { cancelCombo(); } else { setEditingComboId(comboId); }
+    fetchCombos();
+  };
+
+  const toggleComboActive = async (c: ComboLocal) => {
+    await supabase.from("combo_deals").update({ is_active: !c.is_active }).eq("id", c.id);
+    setCombos((prev) => prev.map((x) => x.id === c.id ? { ...x, is_active: !x.is_active } : x));
+  };
+
+  const handleDeleteCombo = async (id: string) => {
+    await supabase.from("combo_deals").delete().eq("id", id);
+    setCombos((prev) => prev.filter((c) => c.id !== id));
+    setDeleteComboId(null); if (editingComboId === id) setEditingComboId(null);
+  };
+
+  // ── Step CRUD ───────────────────────────────────────────────
+  const openEditStep = (s: ComboStep) => {
+    setEditingStepId(s.id);
+    setEditStepForm({ title: s.title, step_order: s.step_order.toString(), min_select: s.min_select.toString(), max_select: s.max_select.toString(), step_type: s.step_type });
+    setAddingStepFor(null);
+  };
+  const openAddStep = (comboId: string) => { setAddingStepFor(comboId); setEditStepForm(BLANK_STEP_FORM); setEditingStepId(null); };
+  const cancelStep  = () => { setEditingStepId(null); setAddingStepFor(null); };
+
+  const handleSaveStep = async (comboId: string, isNew: boolean) => {
+    setSavingStep(true);
+    const payload = {
+      combo_id:   comboId,
+      title:      editStepForm.title.trim(),
+      step_order: parseInt(editStepForm.step_order) || 1,
+      min_select: parseInt(editStepForm.min_select) || 0,
+      max_select: parseInt(editStepForm.max_select) || 1,
+      step_type:  editStepForm.step_type,
+    };
+    if (isNew) {
+      await supabase.from("combo_steps").insert(payload);
+    } else {
+      await supabase.from("combo_steps").update(payload).eq("id", editingStepId!);
+    }
+    setSavingStep(false); cancelStep(); fetchCombos();
+  };
+
+  const handleDeleteStep = async (stepId: string) => {
+    await supabase.from("combo_steps").delete().eq("id", stepId);
+    setDeleteStepId(null); fetchCombos();
+  };
+
+  // ── Option CRUD ─────────────────────────────────────────────
+  const openEditOption = (o: ComboStepOption) => {
+    setEditingOptionId(o.id);
+    setEditOptionForm({ label: o.label, extra_cost: o.extra_cost.toString() });
+    setAddingOptionFor(null);
+  };
+  const openAddOption = (stepId: string) => { setAddingOptionFor(stepId); setEditOptionForm(BLANK_OPTION_FORM); setEditingOptionId(null); };
+  const cancelOption  = () => { setEditingOptionId(null); setAddingOptionFor(null); };
+
+  const handleSaveOption = async (stepId: string, isNew: boolean) => {
+    setSavingOption(true);
+    const payload = { step_id: stepId, label: editOptionForm.label.trim(), extra_cost: parseFloat(editOptionForm.extra_cost) || 0 };
+    if (isNew) {
+      await supabase.from("combo_step_options").insert(payload);
+    } else {
+      await supabase.from("combo_step_options").update(payload).eq("id", editingOptionId!);
+    }
+    setSavingOption(false); cancelOption(); fetchCombos();
+  };
+
+  const handleDeleteOption = async (optId: string) => {
+    await supabase.from("combo_step_options").delete().eq("id", optId);
+    setDeleteOptionId(null); fetchCombos();
+  };
+
+  // ── Render helpers ──────────────────────────────────────────
+  const renderStepForm = (comboId: string, isNew: boolean) => (
+    <div className="px-3 py-3 space-y-2" style={{ background: C.bg, border: `1px solid ${C.primary}33`, borderRadius: "0.75rem", margin: "4px 0" }}>
+      <p className="text-xs font-black" style={{ color: C.gold }}>{isNew ? "مرحلة جديدة" : "تعديل المرحلة"}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="col-span-2">
+          <label className="block text-xs mb-1" style={{ color: C.muted }}>عنوان المرحلة *</label>
+          <input value={editStepForm.title} onChange={(e) => setEditStepForm((p) => ({ ...p, title: e.target.value }))} className={INPUT} placeholder="مثال: اختيار البيتزا الأولى" />
+        </div>
+        <div>
+          <label className="block text-xs mb-1" style={{ color: C.muted }}>ترتيب</label>
+          <input type="number" min="1" value={editStepForm.step_order} onChange={(e) => setEditStepForm((p) => ({ ...p, step_order: e.target.value }))} dir="ltr" className={INPUT} />
+        </div>
+        <div>
+          <label className="block text-xs mb-1" style={{ color: C.muted }}>النوع</label>
+          <select value={editStepForm.step_type} onChange={(e) => setEditStepForm((p) => ({ ...p, step_type: e.target.value }))} className={INPUT}>
+            <option value="pizza">pizza</option>
+            <option value="choice">choice</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs mb-1" style={{ color: C.muted }}>الحد الأدنى</label>
+          <input type="number" min="0" value={editStepForm.min_select} onChange={(e) => setEditStepForm((p) => ({ ...p, min_select: e.target.value }))} dir="ltr" className={INPUT} />
+        </div>
+        <div>
+          <label className="block text-xs mb-1" style={{ color: C.muted }}>الحد الأقصى</label>
+          <input type="number" min="1" value={editStepForm.max_select} onChange={(e) => setEditStepForm((p) => ({ ...p, max_select: e.target.value }))} dir="ltr" className={INPUT} />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => handleSaveStep(comboId, isNew)}
+          disabled={savingStep || !editStepForm.title.trim()}
+          className="text-xs font-bold px-4 py-1.5 rounded-lg disabled:opacity-50"
+          style={{ background: C.primary, color: "#fff" }}
+        >
+          {savingStep ? "..." : isNew ? "إضافة" : "حفظ"}
+        </button>
+        <button onClick={cancelStep} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}>إلغاء</button>
+      </div>
+    </div>
+  );
+
+  const renderOptionForm = (stepId: string, isNew: boolean) => (
+    <div className="flex items-end gap-2 px-3 py-2" style={{ background: C.bg, borderTop: `1px solid ${C.border}` }}>
+      <div className="flex-1">
+        <label className="block text-xs mb-1" style={{ color: C.muted }}>{isNew ? "اسم الخيار *" : "تعديل الخيار"}</label>
+        <input value={editOptionForm.label} onChange={(e) => setEditOptionForm((p) => ({ ...p, label: e.target.value }))} className={INPUT} placeholder="مثال: مارجريتا" />
+      </div>
+      <div className="w-24">
+        <label className="block text-xs mb-1" style={{ color: C.muted }}>سعر إضافي</label>
+        <input type="number" step="0.01" min="0" value={editOptionForm.extra_cost} onChange={(e) => setEditOptionForm((p) => ({ ...p, extra_cost: e.target.value }))} dir="ltr" className={INPUT} />
+      </div>
+      <button
+        onClick={() => handleSaveOption(stepId, isNew)}
+        disabled={savingOption || !editOptionForm.label.trim()}
+        className="text-xs font-bold px-3 py-1.5 rounded-lg mb-0.5 disabled:opacity-50"
+        style={{ background: C.primary, color: "#fff" }}
+      >
+        {savingOption ? "..." : isNew ? "إضافة" : "حفظ"}
+      </button>
+      <button onClick={cancelOption} className="text-xs px-2 py-1.5 rounded-lg mb-0.5" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}>✕</button>
+    </div>
+  );
+
+  const renderComboEditForm = (isNew: boolean) => (
+    <form onSubmit={handleSaveCombo} className="px-4 py-4 space-y-4" style={{ background: C.bg, borderTop: `1px solid ${C.border}` }}>
+      {/* Image */}
+      <div className="flex items-start gap-4">
+        <div className="w-16 h-16 rounded-xl flex items-center justify-center text-3xl shrink-0 overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          {imagePreview || editComboForm.image_url
+            ? <img src={imagePreview || editComboForm.image_url} alt="" className="w-full h-full object-cover" />
+            : <span>🍕</span>
+          }
+        </div>
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} className="hidden" />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+              style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; e.currentTarget.style.borderColor = `${C.primary}44`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border; }}
+            >
+              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+              {imagePreview || editComboForm.image_url ? "تغيير الصورة" : "رفع صورة"}
+            </button>
+            {imagePreview && <span className="text-xs font-bold px-2 py-0.5 rounded-md" style={{ background: "#DCFCE7", color: "#16A34A" }}>جديدة ✓</span>}
+          </div>
+          {imageError && <p className="text-xs" style={{ color: "#DC2626" }}>{imageError}</p>}
+        </div>
+      </div>
+
+      {/* Fields */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="sm:col-span-2">
+          <label className="block text-xs mb-1" style={{ color: C.muted }}>اسم العرض *</label>
+          <input required value={editComboForm.name} onChange={(e) => setEditComboForm((p) => ({ ...p, name: e.target.value }))} className={INPUT} />
+        </div>
+        <div>
+          <label className="block text-xs mb-1" style={{ color: C.muted }}>السعر (د.أ) *</label>
+          <input required type="number" step="0.01" min="0" value={editComboForm.price} onChange={(e) => setEditComboForm((p) => ({ ...p, price: e.target.value }))} dir="ltr" className={INPUT} />
+        </div>
+        <div>
+          <label className="block text-xs mb-1" style={{ color: C.muted }}>ترتيب العرض</label>
+          <input type="number" min="0" value={editComboForm.sort_order} onChange={(e) => setEditComboForm((p) => ({ ...p, sort_order: e.target.value }))} dir="ltr" className={INPUT} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs mb-1" style={{ color: C.muted }}>الوصف</label>
+          <textarea value={editComboForm.description} onChange={(e) => setEditComboForm((p) => ({ ...p, description: e.target.value }))} rows={2} className={`${INPUT} resize-none`} />
+        </div>
+      </div>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" checked={editComboForm.is_active} onChange={(e) => setEditComboForm((p) => ({ ...p, is_active: e.target.checked }))} className="accent-orange-500 w-4 h-4" />
+        <span className="text-sm" style={{ color: C.text }}>نشط (يظهر للعملاء)</span>
+      </label>
+
+      <div className="flex items-center gap-2 pt-1">
+        <button type="submit" disabled={savingCombo || uploading} className="font-bold px-5 py-2 rounded-xl text-sm transition-colors disabled:opacity-50" style={{ background: C.primary, color: "#fff" }}>
+          {uploading ? "جارٍ الرفع..." : savingCombo ? "جارٍ الحفظ..." : isNew ? "إضافة العرض" : "حفظ التعديلات"}
+        </button>
+        <button type="button" onClick={cancelCombo} className="text-sm px-4 py-2 rounded-xl transition-colors" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = "#EF4444"; e.currentTarget.style.borderColor = "#EF444440"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border; }}
+        >
+          إلغاء
+        </button>
+      </div>
+    </form>
+  );
+
+  const renderStepsSection = (combo: ComboLocal) => (
+    <div className="px-4 pb-4" style={{ background: C.bg, borderTop: `1px dashed ${C.border}` }}>
+      <p className="text-xs font-black pt-3 pb-2" style={{ color: C.muted }}>المراحل ({combo.combo_steps.length})</p>
+
+      <div className="space-y-2">
+        {combo.combo_steps.map((step) => (
+          <div key={step.id} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${editingStepId === step.id ? C.primary + "66" : C.border}` }}>
+            {/* Step row */}
+            {editingStepId === step.id ? renderStepForm(combo.id, false) : (
+              <div className="flex items-center gap-2 px-3 py-2" style={{ background: C.surface }}>
+                <div className="flex-1 min-w-0">
+                  <span className="font-bold text-xs" style={{ color: C.text }}>{step.title}</span>
+                  <span className="mr-2 text-xs" style={{ color: C.faint }}>
+                    #{step.step_order} · {step.step_type} · {step.min_select === 0 ? "اختياري" : `min ${step.min_select}`}
+                  </span>
+                </div>
+                <button onClick={() => openEditStep(step)} className="p-1 rounded-lg transition-colors" style={{ color: C.faint }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; e.currentTarget.style.background = `${C.primary}12`; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                {deleteStepId === step.id ? (
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => handleDeleteStep(step.id)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ background: "#EF4444", color: "#fff" }}>حذف</button>
+                    <button onClick={() => setDeleteStepId(null)} className="text-xs px-2 py-1 rounded-lg" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}>لا</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setDeleteStepId(step.id)} className="p-1 rounded-lg transition-colors" style={{ color: C.faint }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = "#DC2626"; e.currentTarget.style.background = "#FFF5F5"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Options for this step */}
+            <div style={{ borderTop: `1px solid ${C.border}` }}>
+              {step.combo_step_options.map((opt) => (
+                <div key={opt.id}>
+                  {editingOptionId === opt.id
+                    ? renderOptionForm(step.id, false)
+                    : (
+                      <div className="flex items-center gap-2 px-3 py-1.5" style={{ borderBottom: `1px solid ${C.border}` }}>
+                        <span className="flex-1 text-xs" style={{ color: C.text }}>{opt.label}</span>
+                        {opt.extra_cost > 0 && <span className="text-xs font-bold" style={{ color: C.primary }}>+{opt.extra_cost.toFixed(2)} د.أ</span>}
+                        <button onClick={() => openEditOption(opt)} className="p-1 rounded transition-colors" style={{ color: C.faint }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; }}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        {deleteOptionId === opt.id ? (
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => handleDeleteOption(opt.id)} className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ background: "#EF4444", color: "#fff" }}>حذف</button>
+                            <button onClick={() => setDeleteOptionId(null)} className="text-xs px-1.5 py-0.5 rounded" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}>لا</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setDeleteOptionId(opt.id)} className="p-1 rounded transition-colors" style={{ color: C.faint }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = "#DC2626"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  }
+                </div>
+              ))}
+
+              {/* Add option form */}
+              {addingOptionFor === step.id
+                ? renderOptionForm(step.id, true)
+                : (
+                  <button
+                    onClick={() => openAddOption(step.id)}
+                    className="w-full text-xs font-bold px-3 py-1.5 text-right transition-colors"
+                    style={{ color: C.faint }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; e.currentTarget.style.background = `${C.primary}08`; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
+                  >
+                    + إضافة خيار
+                  </button>
+                )
+              }
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Add step form */}
+      {addingStepFor === combo.id
+        ? renderStepForm(combo.id, true)
+        : (
+          <button
+            onClick={() => openAddStep(combo.id)}
+            className="mt-2 text-xs font-bold px-3 py-2 rounded-xl w-full text-right transition-colors"
+            style={{ background: C.surface, border: `1px dashed ${C.border}`, color: C.muted }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.color = C.primary; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}
+          >
+            + إضافة مرحلة جديدة
+          </button>
+        )
+      }
+    </div>
+  );
+
+  // ── Main render ─────────────────────────────────────────────
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex justify-between items-center mb-3">
+        <span className="text-sm font-bold" style={{ color: C.muted }}>{combos.length} عرض كومبو</span>
+        <button
+          onClick={editingComboId === "new" ? cancelCombo : openNewCombo}
+          className="flex items-center gap-1.5 font-bold text-xs px-4 py-2 rounded-xl transition-all active:scale-95"
+          style={editingComboId === "new"
+            ? { background: C.surface, border: `1px solid ${C.border}`, color: C.muted }
+            : { background: `linear-gradient(135deg, ${C.primary}, ${C.gold})`, color: "#fff", boxShadow: `0 4px 14px ${C.primary}33` }}
+        >
+          {editingComboId === "new" ? "إلغاء" : "+ إضافة كومبو جديد"}
+        </button>
+      </div>
+
+      {/* New combo form */}
+      {editingComboId === "new" && (
+        <div className="rounded-2xl overflow-hidden mb-4" style={{ border: `1px solid ${C.primary}40` }}>
+          <div className="px-4 py-2.5" style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+            <span className="text-sm font-black" style={{ color: C.gold }}>عرض كومبو جديد</span>
+          </div>
+          {renderComboEditForm(true)}
+        </div>
+      )}
+
+      {/* List */}
+      {loading ? (
+        <div className="text-center py-10" style={{ color: C.faint }}>جارٍ التحميل...</div>
+      ) : combos.length === 0 ? (
+        <div className="text-center py-10" style={{ color: C.faint }}>لا توجد عروض — أضف أول عرض كومبو</div>
+      ) : (
+        <div className="space-y-2">
+          {combos.map((combo) => (
+            <div
+              key={combo.id}
+              className="rounded-xl overflow-hidden"
+              style={{ border: `1px solid ${editingComboId === combo.id ? C.primary : C.border}` }}
+            >
+              {/* Compact row */}
+              <div
+                className="flex items-center gap-3 px-3 py-2.5"
+                style={{ background: C.surface, borderRight: `3px solid ${combo.is_active ? "#22C55E" : "#EF444466"}` }}
+              >
+                {/* Thumbnail */}
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-xl overflow-hidden" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                  {combo.image_url
+                    ? <img src={combo.image_url} alt="" className="w-full h-full object-cover" />
+                    : <span>🍕</span>
+                  }
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm" style={{ color: C.text }}>{combo.name}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: `${C.primary}15`, color: C.primary, border: `1px solid ${C.primary}30` }}>
+                      {combo.price.toFixed(2)} د.أ
+                    </span>
+                    <span className="text-xs" style={{ color: C.faint }}>ترتيب: {combo.sort_order}</span>
+                  </div>
+                  {combo.description && (
+                    <p className="text-xs mt-0.5 truncate" style={{ color: C.faint }}>{combo.description}</p>
+                  )}
+                </div>
+
+                {/* Active toggle */}
+                <button
+                  onClick={() => toggleComboActive(combo)}
+                  title={combo.is_active ? "نشط — انقر لإيقاف" : "متوقف — انقر لتفعيل"}
+                  dir="ltr"
+                  className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors"
+                  style={{ background: combo.is_active ? "#22C55E" : "#D1D5DB" }}
+                >
+                  <span className="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform" style={{ transform: combo.is_active ? "translateX(18px)" : "translateX(2px)" }} />
+                </button>
+
+                {/* Edit */}
+                <button
+                  onClick={() => editingComboId === combo.id ? cancelCombo() : openEditCombo(combo)}
+                  className="p-1.5 rounded-lg transition-colors shrink-0"
+                  style={{ color: editingComboId === combo.id ? C.primary : C.faint, background: editingComboId === combo.id ? `${C.primary}15` : "transparent" }}
+                  onMouseEnter={(e) => { if (editingComboId !== combo.id) { e.currentTarget.style.color = C.primary; e.currentTarget.style.background = `${C.primary}12`; } }}
+                  onMouseLeave={(e) => { if (editingComboId !== combo.id) { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; } }}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Delete */}
+                {deleteComboId === combo.id ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => handleDeleteCombo(combo.id)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ background: "#EF4444", color: "#fff" }}>حذف</button>
+                    <button onClick={() => setDeleteComboId(null)} className="text-xs px-2 py-1 rounded-lg" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}>لا</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setDeleteComboId(combo.id)}
+                    className="p-1.5 rounded-lg transition-colors shrink-0"
+                    style={{ color: C.faint }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = "#DC2626"; e.currentTarget.style.background = "#FFF5F5"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Expanded: edit form + steps */}
+              {editingComboId === combo.id && (
+                <>
+                  {renderComboEditForm(false)}
+                  {renderStepsSection(combo)}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
    Root admin page
 ══════════════════════════════════════════════════════════════ */
 export default function AdminPage() {
   const [userEmail,       setUserEmail]       = useState<string | null | undefined>(undefined);
-  const [tab,             setTab]             = useState<"orders" | "products" | "zones" | "offers" | "points" | "announcements">("orders");
+  const [tab,             setTab]             = useState<"orders" | "products" | "combos" | "zones" | "offers" | "points" | "announcements">("orders");
   const [pendingAckCount, setPendingAckCount] = useState(0);
   const [realtimeStatus,  setRealtimeStatus]  = useState<RealtimeStatus>("connecting");
   const [todayOrders,     setTodayOrders]     = useState(0);
@@ -2849,8 +3422,8 @@ export default function AdminPage() {
     : realtimeStatus === "error"      ? "خطأ"
     : "غير متصل";
 
-  const TAB_LABELS: Record<"orders" | "products" | "zones" | "offers" | "points" | "announcements", string> = {
-    orders: "الطلبات", products: "المنتجات", zones: "التوصيل", offers: "العروض", points: "النقاط", announcements: "الإعلانات",
+  const TAB_LABELS: Record<"orders" | "products" | "combos" | "zones" | "offers" | "points" | "announcements", string> = {
+    orders: "الطلبات", products: "المنتجات", combos: "الكومبو", zones: "التوصيل", offers: "العروض", points: "النقاط", announcements: "الإعلانات",
   };
 
   return (
@@ -2937,7 +3510,7 @@ export default function AdminPage() {
 
           {/* Tab bar — underline style */}
           <div className="flex overflow-x-auto" style={{ borderBottom: `1px solid ${C.border}`, marginBottom: "-1px" }}>
-            {(["orders", "products", "zones", "offers", "points", "announcements"] as const).map((t) => (
+            {(["orders", "products", "combos", "zones", "offers", "points", "announcements"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -2974,6 +3547,7 @@ export default function AdminPage() {
           />
         )}
         {tab === "products"      && <ProductsPanel />}
+        {tab === "combos"        && <CombosPanel />}
         {tab === "zones"         && <DeliveryZonesPanel />}
         {tab === "offers"        && <OffersPanel />}
         {tab === "points"        && <PointsPanel />}

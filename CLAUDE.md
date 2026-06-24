@@ -71,4 +71,4 @@ The Cairo Google Font is loaded in `layout.tsx` and applied globally. All pages 
 - The `product-images` Supabase Storage bucket must exist with public access for product image uploads to work.
 - `src/lib/delivery-zones.ts` imports `supabase` directly — it is a client-only module even though it has no `"use client"` directive. Only import it from client components.
 - The `store_settings` table has a `CHECK (id = 1)` constraint enforcing a single row — never insert a second row.
-- Admin RLS policies on `store_settings` and `delivery_zones` are scoped to the hardcoded admin email `abdallhalmanaseer305@icloud.com`. This value also appears as `ADMIN_EMAIL` in `src/app/admin/page.tsx`.
+- Admin RLS policies on `store_settings` and `delivery_zones` are scoped to the hardcoded admin email `marwanalqissi19866@gmail.com`. This value also appears as `ADMIN_EMAIL` in `src/app/admin/page.tsx`.
