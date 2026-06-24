@@ -1372,7 +1372,7 @@ function ProductsPanel() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { setImageError("حجم الصورة يجب أن لا يتجاوز 5 ميغابايت"); e.target.value = ""; return; }
+    if (file.size > 30 * 1024 * 1024) { setImageError("حجم الصورة يجب أن لا يتجاوز 30 ميغابايت"); e.target.value = ""; return; }
     setImageError("");
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
