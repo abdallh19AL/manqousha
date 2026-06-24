@@ -81,8 +81,9 @@ export default function Navbar({ variant = "dark" }: { variant?: "dark" | "light
 
   const navLinks = isLight
     ? [
-        { href: "/",       label: "القائمة" },
-        { href: "/offers", label: "العروض"  },
+        { href: "/",        label: "القائمة" },
+        { href: "/offers",  label: "العروض"  },
+        { href: "/combos",  label: "كومبو"   },
       ]
     : [
         { href: "/",     label: "القائمة" },
@@ -92,6 +93,7 @@ export default function Navbar({ variant = "dark" }: { variant?: "dark" | "light
   const mobileLinks = [
     { href: "/",       label: "القائمة", icon: "🍽️" },
     { href: "/offers", label: "العروض",  icon: "🔥" },
+    { href: "/combos", label: "كومبو",   icon: "🍕" },
     { href: "/cart",   label: "سلتي",    icon: "🛒" },
   ];
 

@@ -109,6 +109,57 @@ export interface Announcement {
   created_at: string;
 }
 
+export interface ComboDeal {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  image_url: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface ComboStepOption {
+  id: string;
+  step_id: string;
+  label: string;
+  extra_cost: number;
+  product_category: string | null;
+}
+
+export interface ComboStep {
+  id: string;
+  combo_id: string;
+  title: string;
+  subtitle: string | null;
+  step_order: number;
+  min_select: number;
+  max_select: number;
+  step_type: string;
+  combo_step_options: ComboStepOption[];
+}
+
+export interface ComboDealWithSteps extends ComboDeal {
+  combo_steps: ComboStep[];
+}
+
+export interface ComboSelection {
+  stepId: string;
+  stepTitle: string;
+  chosen: string;
+  extraCost: number;
+}
+
+export interface ComboCartItem {
+  comboId: string;
+  comboName: string;
+  basePrice: number;
+  selections: ComboSelection[];
+  quantity: number;
+  cartKey: string;
+}
+
 export interface ProductOffer {
   id: string;
   product_id: string;

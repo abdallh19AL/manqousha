@@ -47,8 +47,11 @@ const C = {
 } as const;
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, clearCart, getTotal } =
-    useCartStore();
+  const {
+    items, removeItem, updateQuantity,
+    comboItems, removeComboItem, updateComboQuantity,
+    clearCart, getTotal,
+  } = useCartStore();
 
   const [form, setForm] = useState({ customer_name: "", customer_phone: "", notes: "" });
   const [loading,         setLoading]         = useState(false);
@@ -261,7 +264,7 @@ export default function CartPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitAttempted(true);
-    if (!isFormValid || items.length === 0 || isStoreClosed) return;
+    if (!isFormValid || (items.length === 0 && comboItems.length === 0) || isStoreClosed) return;
     setLoading(true);
     setSubmitError("");
     try {
@@ -293,8 +296,7 @@ export default function CartPage() {
         throw orderErr;
       }
 
-      const { error: itemsErr } = await supabase.from("order_items").insert(
-        items.map((i) => {
+      const regularRows = items.map((i) => {
           const addonsExtra = (i.addons ?? []).reduce((s, a) => s + a.extra, 0);
           const unitPrice = (i.selectedSize?.price ?? i.product.price) + (i.doughType?.extra ?? 0) + addonsExtra;
           let productName = i.selectedSize
@@ -306,15 +308,16 @@ export default function CartPage() {
           if (i.addons && i.addons.length > 0) {
             productName += ` | ${i.addons.map((a) => `${a.label} +${a.extra.toFixed(2)} د.أ`).join(", ")}`;
           }
-          return {
-            order_id:     order.id,
-            product_id:   UUID_RE.test(i.product.id) ? i.product.id : null,
-            product_name: productName,
-            quantity:     i.quantity,
-            price:        unitPrice,
-          };
-        })
-      );
+          return { order_id: order.id, product_id: UUID_RE.test(i.product.id) ? i.product.id : null, product_name: productName, quantity: i.quantity, price: unitPrice };
+        });
+      const comboRows = comboItems.map((c) => {
+          const extrasTotal = c.selections.reduce((s, sel) => s + sel.extraCost, 0);
+          const selStr = c.selections
+            .map((s) => `${s.stepTitle}: ${s.chosen}${s.extraCost > 0 ? ` +${s.extraCost.toFixed(2)} د.أ` : ""}`)
+            .join(" | ");
+          return { order_id: order.id, product_id: null, product_name: selStr ? `${c.comboName} | ${selStr}` : c.comboName, quantity: c.quantity, price: c.basePrice + extrasTotal };
+        });
+      const { error: itemsErr } = await supabase.from("order_items").insert([...regularRows, ...comboRows]);
 
       if (itemsErr) {
         console.error("[cart] order_items insert failed:", itemsErr);
@@ -479,7 +482,7 @@ export default function CartPage() {
   }
 
   /* ── Empty ───────────────────────────────────────────────────── */
-  if (items.length === 0) {
+  if (items.length === 0 && comboItems.length === 0) {
     return (
       <main className="min-h-screen flex flex-col page-with-decos" style={{ color: C.text }}>
         <PageDecorations />
@@ -590,6 +593,79 @@ export default function CartPage() {
                 <button
                   onClick={() => removeItem(item.cartKey)}
                   className="transition-colors p-1 text-lg leading-none"
+                  style={{ color: C.faint }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "#E84040")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = C.faint)}
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Combo items */}
+          {comboItems.map((combo) => {
+            const comboTotal = combo.basePrice + combo.selections.reduce((s, sel) => s + sel.extraCost, 0);
+            return (
+              <div
+                key={combo.cartKey}
+                className="flex items-start gap-3 py-3"
+                style={{ borderBottom: `1px solid ${C.border}` }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span
+                      className="text-xs font-bold px-1.5 py-0.5 rounded"
+                      style={{ background: "#FFF4EF", color: C.primary }}
+                    >
+                      كومبو
+                    </span>
+                    <p className="font-bold text-sm leading-snug" style={{ color: C.text }}>
+                      {combo.comboName}
+                    </p>
+                  </div>
+                  {combo.selections.map((sel, idx) => (
+                    <p key={idx} className="text-xs mt-0.5" style={{ color: C.faint }}>
+                      {sel.stepTitle}: {sel.chosen}{sel.extraCost > 0 ? ` +${sel.extraCost.toFixed(2)} د.أ` : ""}
+                    </p>
+                  ))}
+                  <p className="font-bold text-xs mt-1" style={{ color: C.gold }}>
+                    {comboTotal.toFixed(2)} د.أ
+                  </p>
+                </div>
+
+                {/* Qty */}
+                <div className="flex items-center gap-1.5 mt-1">
+                  <button
+                    onClick={() => updateComboQuantity(combo.cartKey, combo.quantity - 1)}
+                    className="w-7 h-7 rounded-lg font-bold flex items-center justify-center transition-all text-lg leading-none"
+                    style={{ background: "#FFF0EE", color: "#E84040", border: "1px solid #E8404033" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#FFE0DC")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "#FFF0EE")}
+                  >
+                    −
+                  </button>
+                  <span className="w-6 text-center font-black text-sm" style={{ color: C.text }}>
+                    {combo.quantity}
+                  </span>
+                  <button
+                    onClick={() => updateComboQuantity(combo.cartKey, combo.quantity + 1)}
+                    className="w-7 h-7 rounded-lg font-bold flex items-center justify-center transition-all text-lg leading-none"
+                    style={{ background: `linear-gradient(135deg, ${C.primary}, ${C.gold})`, color: "#fff" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                  >
+                    +
+                  </button>
+                </div>
+
+                <span className="w-14 text-left font-black text-sm mt-1" style={{ color: C.text }}>
+                  {(comboTotal * combo.quantity).toFixed(2)}
+                </span>
+
+                <button
+                  onClick={() => removeComboItem(combo.cartKey)}
+                  className="transition-colors p-1 text-lg leading-none mt-1"
                   style={{ color: C.faint }}
                   onMouseEnter={(e) => (e.currentTarget.style.color = "#E84040")}
                   onMouseLeave={(e) => (e.currentTarget.style.color = C.faint)}
