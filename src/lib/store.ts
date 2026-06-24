@@ -6,7 +6,7 @@ import type { CartItem, Product } from "@/types";
 
 interface CartStore {
   items: CartItem[];
-  addItem: (product: Product, selectedSize?: { label: string; price: number }, doughType?: { label: string; extra: number }) => void;
+  addItem: (product: Product, selectedSize?: { label: string; price: number }, doughType?: { label: string; extra: number }, addons?: { label: string; extra: number }[]) => void;
   removeItem: (cartKey: string) => void;
   updateQuantity: (cartKey: string, quantity: number) => void;
   clearCart: () => void;
@@ -19,8 +19,9 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
 
-      addItem: (product, selectedSize, doughType) => {
-        const cartKey = `${product.id}:${selectedSize?.label ?? ""}:${doughType?.label ?? ""}`;
+      addItem: (product, selectedSize, doughType, addons) => {
+        const addonsKey = (addons ?? []).map((a) => a.label).sort().join(",");
+        const cartKey = `${product.id}:${selectedSize?.label ?? ""}:${doughType?.label ?? ""}:${addonsKey}`;
         const existing = get().items.find((i) => i.cartKey === cartKey);
         if (existing) {
           set({
@@ -32,7 +33,7 @@ export const useCartStore = create<CartStore>()(
           set({
             items: [
               ...get().items,
-              { product, quantity: 1, selectedSize, doughType, cartKey },
+              { product, quantity: 1, selectedSize, doughType, addons: addons?.length ? addons : undefined, cartKey },
             ],
           });
         }
@@ -58,8 +59,10 @@ export const useCartStore = create<CartStore>()(
 
       getTotal: () =>
         get().items.reduce(
-          (sum, i) =>
-            sum + ((i.selectedSize?.price ?? i.product.price) + (i.doughType?.extra ?? 0)) * i.quantity,
+          (sum, i) => {
+            const addonsExtra = (i.addons ?? []).reduce((s, a) => s + a.extra, 0);
+            return sum + ((i.selectedSize?.price ?? i.product.price) + (i.doughType?.extra ?? 0) + addonsExtra) * i.quantity;
+          },
           0
         ),
 

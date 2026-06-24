@@ -64,6 +64,7 @@ export interface CartItem {
   quantity: number;
   selectedSize?: { label: string; price: number };
   doughType?: { label: string; extra: number };
+  addons?: { label: string; extra: number }[];
   cartKey: string;
 }
 

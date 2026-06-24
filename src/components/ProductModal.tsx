@@ -4,30 +4,57 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Product } from "@/types";
 
+interface Addon { label: string; extra: number; }
 interface DoughOption { label: string; extra: number; }
 
+// ── Dough type selector (manaqeesh & pizza) ─────────────────────────────────
 const DOUGH_OPTIONS: Record<string, DoughOption[]> = {
   "مناقيش":         [{ label: "عجينة عادية", extra: 0 }, { label: "عجينة سمراء", extra: 0.25 }],
   "مناقيش مميزة":  [{ label: "عجينة عادية", extra: 0 }, { label: "عجينة سمراء", extra: 0.25 }],
   "بيتزا":          [{ label: "عجينة عادية", extra: 0 }, { label: "عجينة سمراء", extra: 0.5  }],
 };
 
+// ── Optional checkboxes (rolls) ──────────────────────────────────────────────
+const ROLL_CATEGORIES = ["رولات", "رولات مميزة"];
+const NO_CHEESE_ROLLS = ["رول بطاطا مقلية", "رول هوت دوج", "رول سلامي"];
+
+function getRollAddons(product: Product): Addon[] {
+  if (!ROLL_CATEGORIES.includes(product.category)) return [];
+  const addons: Addon[] = [];
+  if (!NO_CHEESE_ROLLS.includes(product.name)) {
+    addons.push({ label: "إضافة جبنة", extra: 0.9 });
+  }
+  addons.push({ label: "عجينة سمرة", extra: 0.25 });
+  return addons;
+}
+
 interface Props {
   product: Product;
   onClose: () => void;
-  onAdd: (product: Product, selectedSize?: { label: string; price: number }, doughType?: DoughOption) => void;
+  onAdd: (
+    product: Product,
+    selectedSize?: { label: string; price: number },
+    doughType?: DoughOption,
+    addons?: Addon[],
+  ) => void;
 }
 
 export default function ProductModal({ product, onClose, onAdd }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [selectedSize, setSelectedSize] = useState(
-    product.sizes?.[0] ?? undefined
-  );
+  const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] ?? undefined);
 
   const doughOptions = DOUGH_OPTIONS[product.category] ?? null;
-  const [selectedDoughType, setSelectedDoughType] = useState<DoughOption | undefined>(
-    doughOptions?.[0]
-  );
+  const [selectedDoughType, setSelectedDoughType] = useState<DoughOption | undefined>(doughOptions?.[0]);
+
+  const rollAddons = getRollAddons(product);
+  const [checkedAddons, setCheckedAddons] = useState<Set<string>>(new Set());
+
+  const toggleAddon = (label: string) =>
+    setCheckedAddons((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      return next;
+    });
 
   useEffect(() => {
     setMounted(true);
@@ -36,7 +63,6 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
@@ -45,7 +71,9 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
 
   if (!mounted) return null;
 
-  const effectivePrice = (selectedSize?.price ?? product.price) + (selectedDoughType?.extra ?? 0);
+  const activeAddons = rollAddons.filter((a) => checkedAddons.has(a.label));
+  const addonsExtra  = activeAddons.reduce((s, a) => s + a.extra, 0);
+  const effectivePrice = (selectedSize?.price ?? product.price) + (selectedDoughType?.extra ?? 0) + addonsExtra;
 
   const modal = (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
@@ -56,7 +84,7 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
         onClick={onClose}
       />
 
-      {/* Card — bottom sheet on mobile, centered on desktop */}
+      {/* Card */}
       <div
         className="relative rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md max-h-[88vh] overflow-y-auto shadow-2xl animate-in"
         style={{ background: "#FFFFFF", border: "1px solid #E5E0D8" }}
@@ -92,7 +120,7 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
             {product.name}
           </h2>
 
-          {/* Description / ingredients */}
+          {/* Description */}
           {product.description && (
             <p className="text-sm leading-relaxed mb-5" style={{ color: "#6B5B47" }}>
               {product.description}
@@ -115,24 +143,12 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
                       className="flex flex-col items-center px-4 py-2.5 rounded-xl font-bold text-sm transition-all"
                       style={
                         active
-                          ? {
-                              background: "#E8622A",
-                              color:      "#FFFFFF",
-                              boxShadow:  "0 4px 14px rgba(232,98,42,0.35)",
-                              transform:  "scale(1.05)",
-                            }
-                          : {
-                              background: "#F7F5F2",
-                              color:      "#1A1208",
-                              border:     "1px solid #E5E0D8",
-                            }
+                          ? { background: "#E8622A", color: "#FFFFFF", boxShadow: "0 4px 14px rgba(232,98,42,0.35)", transform: "scale(1.05)" }
+                          : { background: "#F7F5F2", color: "#1A1208", border: "1px solid #E5E0D8" }
                       }
                     >
                       <span>{size.label}</span>
-                      <span
-                        className="text-xs font-normal mt-0.5"
-                        style={{ color: active ? "rgba(255,255,255,0.85)" : "#9B8B73" }}
-                      >
+                      <span className="text-xs font-normal mt-0.5" style={{ color: active ? "rgba(255,255,255,0.85)" : "#9B8B73" }}>
                         {size.price.toFixed(2)} د.أ
                       </span>
                     </button>
@@ -142,7 +158,7 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
             </div>
           )}
 
-          {/* Dough type selector */}
+          {/* Dough type selector (manaqeesh & pizza) */}
           {doughOptions && (
             <div className="mb-5">
               <p className="text-xs font-semibold uppercase tracking-wider mb-2.5" style={{ color: "#9B8B73" }}>
@@ -158,29 +174,58 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
                       className="flex flex-col items-center px-4 py-2.5 rounded-xl font-bold text-sm transition-all"
                       style={
                         active
-                          ? {
-                              background: "#E8622A",
-                              color:      "#FFFFFF",
-                              boxShadow:  "0 4px 14px rgba(232,98,42,0.35)",
-                              transform:  "scale(1.05)",
-                            }
-                          : {
-                              background: "#F7F5F2",
-                              color:      "#1A1208",
-                              border:     "1px solid #E5E0D8",
-                            }
+                          ? { background: "#E8622A", color: "#FFFFFF", boxShadow: "0 4px 14px rgba(232,98,42,0.35)", transform: "scale(1.05)" }
+                          : { background: "#F7F5F2", color: "#1A1208", border: "1px solid #E5E0D8" }
                       }
                     >
                       <span>{opt.label}</span>
                       {opt.extra > 0 && (
-                        <span
-                          className="text-xs font-normal mt-0.5"
-                          style={{ color: active ? "rgba(255,255,255,0.85)" : "#9B8B73" }}
-                        >
+                        <span className="text-xs font-normal mt-0.5" style={{ color: active ? "rgba(255,255,255,0.85)" : "#9B8B73" }}>
                           +{opt.extra.toFixed(2)} د.أ
                         </span>
                       )}
                     </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Optional add-ons checkboxes (rolls) */}
+          {rollAddons.length > 0 && (
+            <div className="mb-5">
+              <p className="text-xs font-semibold uppercase tracking-wider mb-2.5" style={{ color: "#9B8B73" }}>
+                إضافات اختيارية
+              </p>
+              <div className="flex flex-col gap-2">
+                {rollAddons.map((addon) => {
+                  const checked = checkedAddons.has(addon.label);
+                  return (
+                    <label
+                      key={addon.label}
+                      className="flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer transition-all"
+                      style={
+                        checked
+                          ? { background: "#FFF4EF", border: "1.5px solid #E8622A" }
+                          : { background: "#F7F5F2", border: "1px solid #E5E0D8" }
+                      }
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAddon(addon.label)}
+                          className="w-4 h-4 cursor-pointer"
+                          style={{ accentColor: "#E8622A" }}
+                        />
+                        <span className="font-bold text-sm" style={{ color: "#1A1208" }}>
+                          {addon.label}
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold" style={{ color: "#E8622A" }}>
+                        +{addon.extra.toFixed(2)} د.أ
+                      </span>
+                    </label>
                   );
                 })}
               </div>
@@ -196,21 +241,18 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
               </p>
             </div>
             <button
-              onClick={() => onAdd(product, selectedSize, doughOptions ? selectedDoughType : undefined)}
+              onClick={() => onAdd(
+                product,
+                selectedSize,
+                doughOptions ? selectedDoughType : undefined,
+                activeAddons.length > 0 ? activeAddons : undefined,
+              )}
               disabled={!product.available}
               className="flex-1 font-black py-3.5 rounded-xl text-base transition-all active:scale-95"
               style={
                 product.available
-                  ? {
-                      background: "linear-gradient(135deg, #E8622A, #C8922A)",
-                      color:      "#FFFFFF",
-                      boxShadow:  "0 4px 16px rgba(232,98,42,0.44)",
-                    }
-                  : {
-                      background: "#E5E0D8",
-                      color:      "#9B8B73",
-                      cursor:     "not-allowed",
-                    }
+                  ? { background: "linear-gradient(135deg, #E8622A, #C8922A)", color: "#FFFFFF", boxShadow: "0 4px 16px rgba(232,98,42,0.44)" }
+                  : { background: "#E5E0D8", color: "#9B8B73", cursor: "not-allowed" }
               }
             >
               {product.available ? "أضف للسلة 🛒" : "غير متاح"}
