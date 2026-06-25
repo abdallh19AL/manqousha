@@ -24,27 +24,7 @@ export default function ReceiptPage() {
 
   useEffect(() => {
     if (!order) return;
-
-    setTimeout(() => {
-      const container = document.querySelector(".receipt-container") as HTMLElement;
-      if (!container) return;
-
-      const heightPx = container.scrollHeight;
-      const heightMm = Math.ceil(heightPx / 3.7795) + 5;
-
-      const style = document.createElement("style");
-      style.textContent = `
-        @media print {
-          @page {
-            size: 80mm ${heightMm}mm;
-            margin: 0;
-          }
-        }
-      `;
-      document.head.appendChild(style);
-
-      window.print();
-    }, 500);
+    setTimeout(() => window.print(), 600);
   }, [order]);
 
   if (error) {
@@ -78,13 +58,15 @@ export default function ReceiptPage() {
       <style>{`
         @media print {
           @page {
+            size: 80mm 200mm;
             margin: 0;
           }
           html, body {
-            width: 80mm !important;
+            width: 80mm;
+            height: 200mm;
             margin: 0 !important;
             padding: 0 !important;
-            background: #fff !important;
+            overflow: hidden;
           }
           body * { visibility: hidden; }
           .receipt-container, .receipt-container * { visibility: visible; }
@@ -93,6 +75,12 @@ export default function ReceiptPage() {
             top: 0;
             left: 0;
             width: 80mm;
+            padding: 3mm;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            font-size: 13px;
+            color: #000;
+            background: #fff;
           }
         }
         body {
@@ -108,7 +96,7 @@ export default function ReceiptPage() {
           width: "80mm",
           padding: "3mm",
           fontFamily: "Arial, sans-serif",
-          fontSize: "12px",
+          fontSize: "13px",
           color: "#000",
           background: "#fff",
           direction: "rtl",
