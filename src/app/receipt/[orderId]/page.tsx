@@ -24,7 +24,15 @@ export default function ReceiptPage() {
 
   useEffect(() => {
     if (!order) return;
-    const timer = setTimeout(() => window.print(), 600);
+    const timer = setTimeout(() => {
+      const container = document.querySelector(".receipt-container") as HTMLElement;
+      if (container) {
+        const h = container.offsetHeight;
+        document.documentElement.style.height = h + "px";
+        document.body.style.height = h + "px";
+      }
+      window.print();
+    }, 600);
     return () => clearTimeout(timer);
   }, [order]);
 
@@ -62,12 +70,13 @@ export default function ReceiptPage() {
             size: 80mm 297mm;
             margin: 0;
           }
-          html, body {
-            display: block;
-            width: 80mm;
+          html {
+            height: auto !important;
+          }
+          body {
+            height: auto !important;
             margin: 0 !important;
             padding: 0 !important;
-            background: #fff !important;
           }
           body * { visibility: hidden; }
           .receipt-container, .receipt-container * { visibility: visible; }
@@ -75,6 +84,11 @@ export default function ReceiptPage() {
             position: absolute;
             top: 0;
             left: 0;
+            width: 80mm;
+            height: auto !important;
+          }
+          .receipt-end {
+            page-break-after: always;
           }
         }
         body {
@@ -154,6 +168,7 @@ export default function ReceiptPage() {
 
         <div style={{ fontWeight: "bold", fontSize: "11px", marginTop: "1px" }}>{paymentLabel}</div>
         <div style={{ textAlign: "center", fontSize: "12px", marginTop: "4px" }}>شكراً لزيارتكم 🙏</div>
+        <div className="receipt-end" />
       </div>
     </>
   );
