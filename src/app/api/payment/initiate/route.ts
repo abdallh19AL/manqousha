@@ -10,29 +10,35 @@ export async function POST(req: Request) {
     };
 
     const apiKey = process.env.MYFATOORAH_API_KEY;
+    console.log("[MyFatoorah] API Key exists:", !!apiKey);
+    console.log("[MyFatoorah] API Key length:", apiKey?.length ?? 0);
     if (!apiKey) {
       return NextResponse.json({ error: "بوابة الدفع غير مهيأة" }, { status: 500 });
     }
+
+    const requestBody = {
+      NotificationOption:  "LNK",
+      InvoiceValue:        amount,
+      CallBackUrl:         `https://manqoushanar.com/payment/success?orderId=${orderId}`,
+      ErrorUrl:            `https://manqoushanar.com/payment/error?orderId=${orderId}`,
+      Language:            "AR",
+      CustomerName:        customerName,
+      CustomerMobile:      customerPhone,
+      DisplayCurrencyIso:  "JOD",
+      MobileCountryCode:   "+962",
+      CustomerEmail:       "customer@manqoushanar.com",
+      CustomerReference:   orderId,
+    };
+    console.log("[MyFatoorah] Sending to https://api.myfatoorah.com/v2/SendPayment");
+    console.log("[MyFatoorah] Request body:", JSON.stringify(requestBody));
 
     const mfRes = await fetch("https://api.myfatoorah.com/v2/SendPayment", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization:  `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        NotificationOption:  "LNK",
-        InvoiceValue:        amount,
-        CallBackUrl:         `https://manqoushanar.com/payment/success?orderId=${orderId}`,
-        ErrorUrl:            `https://manqoushanar.com/payment/error?orderId=${orderId}`,
-        Language:            "AR",
-        CustomerName:        customerName,
-        CustomerMobile:      customerPhone,
-        DisplayCurrencyIso:  "JOD",
-        MobileCountryCode:   "+962",
-        CustomerEmail:       "customer@manqoushanar.com",
-        CustomerReference:   orderId,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const mfData = (await mfRes.json()) as {
@@ -40,6 +46,9 @@ export async function POST(req: Request) {
       Message?: string;
       Data?: { PaymentURL?: string };
     };
+
+    console.log("[MyFatoorah] Response status:", mfRes.status);
+    console.log("[MyFatoorah] Response body:", JSON.stringify(mfData));
 
     if (!mfRes.ok || !mfData.IsSuccess) {
       console.error("[MyFatoorah] SendPayment failed:", mfData);
