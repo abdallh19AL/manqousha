@@ -135,6 +135,12 @@ body {
     margin: 0;
   }
 
+  html, body {
+    width: 80mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   /* Hide every element on the page */
   body * { visibility: hidden !important; }
 
@@ -144,9 +150,7 @@ body {
 
   .print-receipt {
     display: block !important;
-    position: fixed !important;
-    top: 0 !important;
-    right: 0 !important;
+    position: static !important;
     width: 80mm !important;
     font-family: Arial, sans-serif !important;
     font-size: 12px !important;
