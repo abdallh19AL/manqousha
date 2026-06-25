@@ -42,10 +42,13 @@ export function printOrderReceipt(order: OrderWithItems): void {
 <style>
   @page {
     size: 80mm auto;
-    margin: 0mm;
+    margin: 0;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { height: auto; }
   body {
+    height: auto;
+    min-height: unset;
     width: 80mm;
     max-width: 80mm;
     margin: 0;
@@ -149,7 +152,7 @@ export function printOrderReceipt(order: OrderWithItems): void {
   const popup = window.open(
     "",
     "_blank",
-    "width=400,height=800,toolbar=0,menubar=0,location=0,status=0"
+    "width=302,height=400,toolbar=0,menubar=0,location=0,status=0"
   );
   if (!popup) {
     alert("يرجى السماح بالنوافذ المنبثقة لطباعة الفاتورة");
