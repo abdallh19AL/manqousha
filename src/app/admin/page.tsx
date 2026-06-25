@@ -1071,57 +1071,6 @@ function OrdersPanel({
                       )}
                     </div>
 
-                    {/* Print-only receipt — hidden on screen via @media screen, revealed by @media print */}
-                    <div className="print-receipt">
-                      <div style={{ textAlign: "center", fontWeight: 900, fontSize: 20, marginBottom: 3 }}>منقوشة و نار</div>
-                      <hr style={{ border: "none", borderTop: "1px dashed #000", margin: "5px 0" }} />
-                      <div style={{ fontWeight: "bold", fontSize: 13 }}>رقم الطلب: #{order.id.slice(-6).toUpperCase()}</div>
-                      <div style={{ color: "#444", marginTop: 2 }}>
-                        {new Date(order.created_at).toLocaleDateString("ar-JO", { year: "numeric", month: "long", day: "numeric" })}
-                        {" — "}
-                        {new Date(order.created_at).toLocaleTimeString("ar-JO", { hour: "2-digit", minute: "2-digit" })}
-                      </div>
-                      <hr style={{ border: "none", borderTop: "1px dashed #000", margin: "5px 0" }} />
-                      <div style={{ display: "flex", justifyContent: "space-between", padding: "1.5px 0" }}>
-                        <span style={{ color: "#333" }}>الهاتف:</span>
-                        <span>{order.customer_phone}</span>
-                      </div>
-                      {order.delivery_zone && (
-                        <div style={{ display: "flex", justifyContent: "space-between", padding: "1.5px 0" }}>
-                          <span style={{ color: "#333" }}>منطقة التوصيل:</span>
-                          <span>{order.delivery_zone}</span>
-                        </div>
-                      )}
-                      <div style={{ display: "flex", justifyContent: "space-between", padding: "1.5px 0" }}>
-                        <span style={{ color: "#333" }}>رسوم التوصيل:</span>
-                        <span>{(Number(order.delivery_fee) || 0) > 0 ? `${Number(order.delivery_fee).toFixed(2)} د.أ` : "مجاناً"}</span>
-                      </div>
-                      <hr style={{ border: "none", borderTop: "1px dashed #000", margin: "5px 0" }} />
-                      {order.order_items.map((item) => (
-                        <div key={item.id} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-                          <span style={{ flex: 1, paddingLeft: 8 }}>{item.product_name}</span>
-                          <span style={{ whiteSpace: "nowrap" }}>{item.quantity} × {item.price.toFixed(2)} د.أ</span>
-                        </div>
-                      ))}
-                      <hr style={{ border: "none", borderTop: "1px dashed #000", margin: "5px 0" }} />
-                      <div style={{ display: "flex", justifyContent: "space-between", padding: "1.5px 0" }}>
-                        <span>المجموع (دون توصيل)</span>
-                        <span>{(order.total ?? 0).toFixed(2)} د.أ</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", padding: "1.5px 0" }}>
-                        <span>رسوم التوصيل</span>
-                        <span>{(Number(order.delivery_fee) || 0) > 0 ? `${Number(order.delivery_fee).toFixed(2)} د.أ` : "مجاناً"}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: 15, padding: "3px 0" }}>
-                        <span>الإجمالي</span>
-                        <span>{grandTotal.toFixed(2)} د.أ</span>
-                      </div>
-                      <hr style={{ border: "none", borderTop: "1px dashed #000", margin: "5px 0" }} />
-                      <div style={{ fontWeight: "bold" }}>
-                        {(order.payment_method ?? "cash") === "electronic" ? "الدفع: إلكتروني" : "الدفع: نقداً"}
-                      </div>
-                      <div style={{ textAlign: "center", fontSize: 13, marginTop: 5 }}>شكراً لزيارتكم 🙏</div>
-                    </div>
                   </div>
                 )}
               </div>

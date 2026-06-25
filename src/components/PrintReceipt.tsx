@@ -40,14 +40,15 @@ export function printOrderReceipt(order: OrderWithItems): void {
 <meta charset="UTF-8" />
 <title>فاتورة #${shortId}</title>
 <style>
+  @page { size: 80mm auto; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: 'Cairo', Arial, sans-serif;
+    width: 80mm;
+    font-family: Arial, sans-serif;
     font-size: 12px;
     color: #000;
     background: #fff;
     direction: rtl;
-    width: 80mm;
     padding: 4mm 3mm;
   }
   .restaurant-name {
@@ -88,9 +89,6 @@ export function printOrderReceipt(order: OrderWithItems): void {
   }
   .payment { font-weight: bold; font-size: 12px; margin-top: 1px; }
   .footer { text-align: center; font-size: 13px; margin-top: 5px; }
-  @media print {
-    body { width: 80mm; margin: 0; font-size: 12px; }
-  }
 </style>
 </head>
 <body>
@@ -127,10 +125,7 @@ export function printOrderReceipt(order: OrderWithItems): void {
   <div class="payment">${paymentLabel}</div>
   <div class="footer">شكراً لزيارتكم 🙏</div>
   <script>
-    window.onload = function () {
-      window.print();
-      window.onafterprint = function () { window.close(); };
-    };
+    window.onload = function () { window.print(); };
   </script>
 </body>
 </html>`;
@@ -138,7 +133,7 @@ export function printOrderReceipt(order: OrderWithItems): void {
   const popup = window.open(
     "",
     "_blank",
-    "width=330,height=620,toolbar=0,menubar=0,location=0,status=0,scrollbars=1"
+    "width=320,height=600,toolbar=0,menubar=0,location=0,status=0"
   );
   if (!popup) {
     alert("يرجى السماح بالنوافذ المنبثقة لطباعة الفاتورة");
