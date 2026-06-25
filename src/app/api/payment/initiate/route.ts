@@ -12,6 +12,8 @@ export async function POST(req: Request) {
     const apiKey = process.env.MYFATOORAH_API_KEY;
     console.log("[MyFatoorah] API Key exists:", !!apiKey);
     console.log("[MyFatoorah] API Key length:", apiKey?.length ?? 0);
+    console.log("[MyFatoorah] Key prefix:", apiKey?.substring(0, 20));
+    console.log("[MyFatoorah] Auth header:", `Bearer ${apiKey?.substring(0, 20)}...`);
     if (!apiKey) {
       return NextResponse.json({ error: "بوابة الدفع غير مهيأة" }, { status: 500 });
     }
@@ -48,6 +50,7 @@ export async function POST(req: Request) {
     };
 
     console.log("[MyFatoorah] Response status:", mfRes.status);
+    console.log("[MyFatoorah] Response headers:", Object.fromEntries(mfRes.headers.entries()));
     console.log("[MyFatoorah] Response body:", JSON.stringify(mfData));
 
     if (!mfRes.ok || !mfData.IsSuccess) {
