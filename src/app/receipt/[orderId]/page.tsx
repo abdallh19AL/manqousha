@@ -24,7 +24,37 @@ export default function ReceiptPage() {
 
   useEffect(() => {
     if (!order) return;
-    setTimeout(() => window.print(), 600);
+
+    const timer = setTimeout(() => {
+      const container = document.querySelector(".receipt-container") as HTMLElement;
+      if (!container) {
+        window.print();
+        return;
+      }
+
+      const heightPx = container.getBoundingClientRect().height;
+      const heightMm = Math.ceil((heightPx * 25.4) / 96) + 3;
+
+      const printStyle = document.createElement("style");
+      printStyle.id = "dynamic-print-size";
+      printStyle.textContent = `
+        @media print {
+          @page {
+            size: 80mm ${heightMm}mm !important;
+            margin: 0 !important;
+          }
+          html, body {
+            height: ${heightMm}mm !important;
+            overflow: hidden !important;
+          }
+        }
+      `;
+      document.head.appendChild(printStyle);
+
+      setTimeout(() => window.print(), 200);
+    }, 700);
+
+    return () => clearTimeout(timer);
   }, [order]);
 
   if (error) {
@@ -57,16 +87,11 @@ export default function ReceiptPage() {
     <>
       <style>{`
         @media print {
-          @page {
-            size: 80mm 200mm;
-            margin: 0;
-          }
+          @page { margin: 0; }
           html, body {
             width: 80mm;
-            height: 200mm;
             margin: 0 !important;
             padding: 0 !important;
-            overflow: hidden;
           }
           body * { visibility: hidden; }
           .receipt-container, .receipt-container * { visibility: visible; }
@@ -76,7 +101,6 @@ export default function ReceiptPage() {
             left: 0;
             width: 80mm;
             padding: 3mm;
-            margin: 0;
             font-family: Arial, sans-serif;
             font-size: 13px;
             color: #000;
