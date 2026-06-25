@@ -44,20 +44,16 @@ export function printOrderReceipt(order: OrderWithItems): void {
     size: 80mm auto;
     margin: 0;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { height: auto; }
+  * { margin: 0; padding: 0; }
   body {
-    height: auto;
-    min-height: unset;
     width: 80mm;
-    max-width: 80mm;
-    margin: 0;
-    padding: 2mm;
+    padding: 3mm;
     font-family: Arial, sans-serif;
     font-size: 11px;
     color: #000;
     background: #fff;
     direction: rtl;
+    height: auto !important;
   }
   .restaurant-name {
     font-size: 18px;
@@ -143,16 +139,13 @@ export function printOrderReceipt(order: OrderWithItems): void {
   <hr class="divider" />
   <div class="payment">${paymentLabel}</div>
   <div class="footer">شكراً لزيارتكم</div>
-  <script>
-    window.onload = function() { window.print(); };
-  </script>
 </body>
 </html>`;
 
   const popup = window.open(
     "",
     "_blank",
-    "width=302,height=400,toolbar=0,menubar=0,location=0,status=0"
+    "width=302,toolbar=0,menubar=0,location=0,status=0,resizable=1"
   );
   if (!popup) {
     alert("يرجى السماح بالنوافذ المنبثقة لطباعة الفاتورة");
@@ -160,4 +153,8 @@ export function printOrderReceipt(order: OrderWithItems): void {
   }
   popup.document.write(html);
   popup.document.close();
+  setTimeout(() => {
+    popup.resizeTo(302, popup.document.body.scrollHeight + 50);
+    popup.print();
+  }, 300);
 }
