@@ -124,6 +124,39 @@ body {
   70%       { transform: translateY(-4px); }
 }
 
+/* ── Print: show only the expanded order receipt ── */
+@media screen {
+  .print-receipt { display: none; }
+}
+
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  /* Hide every element on the page */
+  body * { visibility: hidden !important; }
+
+  /* Reveal only the receipt and its descendants */
+  .print-receipt,
+  .print-receipt * { visibility: visible !important; }
+
+  .print-receipt {
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 80mm !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 12px !important;
+    color: #000 !important;
+    background: #fff !important;
+    direction: rtl !important;
+    padding: 4mm 3mm !important;
+  }
+}
+
 /* ── Fixed decoration — mobile scaling ── */
 @media (max-width: 768px) {
   .deco-tr { width: 154px !important; opacity: 0.18 !important; }
