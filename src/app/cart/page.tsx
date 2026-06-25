@@ -253,7 +253,7 @@ export default function CartPage() {
     ? "رقم غير صحيح — مثال: 0791234567" : null;
   const locationError = !location
     ? "يرجى تحديد موقعك على الخريطة" : null;
-  const isFormValid   = !nameError && !phoneError && !locationError && paymentMethod === "cash";
+  const isFormValid   = !nameError && !phoneError && !locationError && paymentMethod !== null;
 
   const showNameError    = (nameTouched  || submitAttempted) && !!nameError;
   const showPhoneError   = (phoneTouched || submitAttempted) && !!phoneError;
@@ -323,6 +323,27 @@ export default function CartPage() {
         console.error("[cart] order_items insert failed:", itemsErr);
         throw itemsErr;
       }
+      if (paymentMethod === "electronic") {
+        const payRes = await fetch("/api/payment/initiate", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({
+            orderId:       order.id,
+            amount:        grandTotal,
+            customerName:  form.customer_name.trim(),
+            customerPhone: form.customer_phone.trim(),
+          }),
+        });
+        const payData = await payRes.json() as { paymentUrl?: string; error?: string };
+        if (!payRes.ok || !payData.paymentUrl) {
+          throw new Error(payData.error ?? "فشل تهيئة الدفع الإلكتروني");
+        }
+        clearCart();
+        try { localStorage.removeItem("manqousha-delivery-info"); } catch { /* ignore */ }
+        window.location.href = payData.paymentUrl;
+        return;
+      }
+
       setConfirmedTotal(grandTotal);
       setConfirmedOrderId(order.id);
       try { localStorage.removeItem("manqousha-delivery-info"); } catch { /* ignore */ }
@@ -892,7 +913,6 @@ export default function CartPage() {
                       : {
                           background: C.bg,
                           border:     `1px solid ${C.border}`,
-                          opacity:    0.7,
                         }
                   }
                 >
@@ -905,48 +925,18 @@ export default function CartPage() {
                   </div>
                   <span
                     className="text-xs font-bold px-2.5 py-1 rounded-full"
-                    style={{ background: `${C.gold}20`, color: C.gold }}
+                    style={{ background: "#DCFCE7", color: "#166534" }}
                   >
-                    🔜 قريباً
+                    ✓ متاح
                   </span>
                 </button>
               </div>
 
-              {/* Electronic sub-options */}
               {paymentMethod === "electronic" && (
-                <div className="mt-3 space-y-3">
-                  <div className="grid grid-cols-3 gap-2">
-                    {ELECTRONIC_OPTS.map((opt) => {
-                      const OptIcon = opt.Icon;
-                      return (
-                      <button
-                        key={opt.key}
-                        type="button"
-                        onClick={() => { setElectronicSub(opt.key); setShowElecMsg(true); }}
-                        className="flex flex-col items-center gap-1.5 py-3.5 rounded-xl transition-all"
-                        style={
-                          electronicSub === opt.key
-                            ? { background: `${C.primary}12`, border: `1px solid ${C.primary}55`, color: C.primary }
-                            : { background: C.bg,             border: `1px solid ${C.border}`,   color: C.muted   }
-                        }
-                      >
-                        <OptIcon className="w-6 h-6" />
-                        <span className="font-bold text-xs">{opt.label}</span>
-                        <span className="text-xs opacity-60">{opt.desc}</span>
-                      </button>
-                      );
-                    })}
-                  </div>
-                  {showElecMsg && (
-                    <div
-                      className="rounded-xl px-4 py-3"
-                      style={{ background: `${C.gold}12`, border: `1px solid ${C.gold}33` }}
-                    >
-                      <p className="text-xs leading-relaxed" style={{ color: C.gold }}>
-                        سيتم إضافة هذه الخدمة قريباً — يمكنك الدفع عند الاستلام في الوقت الحالي
-                      </p>
-                    </div>
-                  )}
+                <div className="mt-3 rounded-xl px-4 py-3" style={{ background: `${C.gold}10`, border: `1px solid ${C.gold}33` }}>
+                  <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
+                    سيتم تحويلك إلى صفحة الدفع الآمنة — تدعم Visa وMastercard وApple Pay وGoogle Pay
+                  </p>
                 </div>
               )}
 
@@ -1084,24 +1074,6 @@ export default function CartPage() {
               </div>
             )}
 
-            {/* Electronic payment unavailable banner */}
-            {paymentMethod === "electronic" && (
-              <div
-                style={{
-                  background: "#FFF0F0",
-                  border: "1px solid #E8404033",
-                  color: "#C52020",
-                  borderRadius: "12px",
-                  padding: "12px 16px",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  marginBottom: "12px",
-                  textAlign: "center",
-                }}
-              >
-                الدفع الإلكتروني غير متاح حالياً، يرجى الدفع نقداً
-              </div>
-            )}
 
             {/* Submit button */}
             <button
@@ -1123,7 +1095,7 @@ export default function CartPage() {
               }
             >
               {loading
-                ? "جارٍ الإرسال..."
+                ? paymentMethod === "electronic" ? "جارٍ التحويل للدفع..." : "جارٍ الإرسال..."
                 : isStoreClosed
                 ? (outsideHours && !ordersPaused ? "المطعم مغلق حالياً 🕐" : "الطلبات متوقفة مؤقتاً ⏸️")
                 : `تأكيد الطلب — ${grandTotal.toFixed(2)} د.أ 🔥`}
