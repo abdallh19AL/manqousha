@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import PageDecorations from "@/components/PageDecorations";
+import { printOrderReceipt } from "@/components/PrintReceipt";
 import { DUMMY_PRODUCTS } from "@/lib/dummy-products";
 import type { OrderStatus, OrderWithItems, Product, ComboDealWithSteps, ComboStep, ComboStepOption } from "@/types";
 
@@ -1047,7 +1048,7 @@ function OrdersPanel({
                       </select>
                       {/* Print */}
                       <button
-                        onClick={() => window.print()}
+                        onClick={() => printOrderReceipt(order)}
                         className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
                         style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
                         onMouseEnter={(e) => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = C.muted; }}
