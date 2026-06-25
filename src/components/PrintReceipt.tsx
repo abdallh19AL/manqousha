@@ -40,19 +40,24 @@ export function printOrderReceipt(order: OrderWithItems): void {
 <meta charset="UTF-8" />
 <title>فاتورة #${shortId}</title>
 <style>
-  @page { size: 98mm 148mm; margin: 0; }
+  @page {
+    size: 80mm auto;
+    margin: 0mm;
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     width: 80mm;
+    max-width: 80mm;
+    margin: 0;
+    padding: 2mm;
     font-family: Arial, sans-serif;
-    font-size: 12px;
+    font-size: 11px;
     color: #000;
     background: #fff;
     direction: rtl;
-    padding: 4mm 3mm;
   }
   .restaurant-name {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 900;
     text-align: center;
     letter-spacing: 0.5px;
@@ -61,34 +66,45 @@ export function printOrderReceipt(order: OrderWithItems): void {
   .divider {
     border: none;
     border-top: 1px dashed #000;
-    margin: 5px 0;
+    margin: 4px 0;
+    width: 100%;
   }
   .row {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    padding: 1.5px 0;
+    padding: 1px 0;
+    width: 100%;
+    overflow: hidden;
   }
-  .label { color: #333; }
-  .order-id { font-size: 13px; font-weight: bold; }
-  .meta { color: #444; margin-top: 2px; }
+  .label { color: #333; white-space: nowrap; }
+  .order-id { font-size: 12px; font-weight: bold; }
+  .meta { color: #444; margin-top: 2px; font-size: 10px; }
   .item-row {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     padding: 2px 0;
+    width: 100%;
+    overflow: hidden;
   }
-  .item-name { flex: 1; padding-left: 8px; }
-  .item-qty { white-space: nowrap; }
+  .item-name {
+    flex: 1;
+    padding-left: 6px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+  .item-qty { white-space: nowrap; flex-shrink: 0; }
   .total-row {
     display: flex;
     justify-content: space-between;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 900;
-    padding: 3px 0;
+    padding: 2px 0;
+    width: 100%;
   }
-  .payment { font-weight: bold; font-size: 12px; margin-top: 1px; }
-  .footer { text-align: center; font-size: 13px; margin-top: 5px; }
+  .payment { font-weight: bold; font-size: 11px; margin-top: 1px; }
+  .footer { text-align: center; font-size: 12px; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -123,9 +139,9 @@ export function printOrderReceipt(order: OrderWithItems): void {
   </div>
   <hr class="divider" />
   <div class="payment">${paymentLabel}</div>
-  <div class="footer">شكراً لزيارتكم 🙏</div>
+  <div class="footer">شكراً لزيارتكم</div>
   <script>
-    window.onload = function () { window.print(); };
+    window.onload = function() { window.print(); };
   </script>
 </body>
 </html>`;
@@ -133,7 +149,7 @@ export function printOrderReceipt(order: OrderWithItems): void {
   const popup = window.open(
     "",
     "_blank",
-    "width=98,height=148,toolbar=0,menubar=0,location=0,status=0"
+    "width=400,height=800,toolbar=0,menubar=0,location=0,status=0"
   );
   if (!popup) {
     alert("يرجى السماح بالنوافذ المنبثقة لطباعة الفاتورة");
