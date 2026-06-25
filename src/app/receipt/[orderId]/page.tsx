@@ -24,7 +24,27 @@ export default function ReceiptPage() {
 
   useEffect(() => {
     if (!order) return;
-    window.print();
+
+    setTimeout(() => {
+      const container = document.querySelector(".receipt-container") as HTMLElement;
+      if (!container) return;
+
+      const heightPx = container.scrollHeight;
+      const heightMm = Math.ceil(heightPx / 3.7795) + 5;
+
+      const style = document.createElement("style");
+      style.textContent = `
+        @media print {
+          @page {
+            size: 80mm ${heightMm}mm;
+            margin: 0;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+
+      window.print();
+    }, 500);
   }, [order]);
 
   if (error) {
@@ -58,7 +78,6 @@ export default function ReceiptPage() {
       <style>{`
         @media print {
           @page {
-            size: 80mm auto;
             margin: 0;
           }
           html, body {
