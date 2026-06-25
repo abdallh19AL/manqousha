@@ -24,36 +24,7 @@ export default function ReceiptPage() {
 
   useEffect(() => {
     if (!order) return;
-
-    const timer = setTimeout(() => {
-      const container = document.querySelector(".receipt-container") as HTMLElement;
-      if (!container) {
-        window.print();
-        return;
-      }
-
-      const heightPx = container.getBoundingClientRect().height;
-      const heightMm = Math.ceil((heightPx * 25.4) / 96) + 3;
-
-      const printStyle = document.createElement("style");
-      printStyle.id = "dynamic-print-size";
-      printStyle.textContent = `
-        @media print {
-          @page {
-            size: 80mm ${heightMm}mm !important;
-            margin: 0 !important;
-          }
-          html, body {
-            height: ${heightMm}mm !important;
-            overflow: hidden !important;
-          }
-        }
-      `;
-      document.head.appendChild(printStyle);
-
-      setTimeout(() => window.print(), 200);
-    }, 700);
-
+    const timer = setTimeout(() => window.print(), 600);
     return () => clearTimeout(timer);
   }, [order]);
 
@@ -87,11 +58,16 @@ export default function ReceiptPage() {
     <>
       <style>{`
         @media print {
-          @page { margin: 0; }
+          @page {
+            size: 80mm 297mm;
+            margin: 0;
+          }
           html, body {
+            display: block;
             width: 80mm;
             margin: 0 !important;
             padding: 0 !important;
+            background: #fff !important;
           }
           body * { visibility: hidden; }
           .receipt-container, .receipt-container * { visibility: visible; }
@@ -99,15 +75,10 @@ export default function ReceiptPage() {
             position: absolute;
             top: 0;
             left: 0;
-            width: 80mm;
-            padding: 3mm;
-            font-family: Arial, sans-serif;
-            font-size: 13px;
-            color: #000;
-            background: #fff;
           }
         }
         body {
+          display: block;
           background: #fff;
           margin: 0;
           padding: 0;
@@ -117,6 +88,11 @@ export default function ReceiptPage() {
       <div
         className="receipt-container"
         style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          margin: 0,
           width: "80mm",
           padding: "3mm",
           fontFamily: "Arial, sans-serif",
