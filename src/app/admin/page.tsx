@@ -474,42 +474,43 @@ function OrdersPanel({
     }
   }, []);
 
-  const playMelody = useCallback(() => {
+  const playOrderAlarm = useCallback(() => {
     const ctx = audioCtxRef.current;
-    if (!ctx) {
-      return;
-    }
+    if (!ctx) return;
     if (ctx.state === "suspended") {
       console.warn("[Audio] Context suspended — needs user gesture to resume.");
       ctx.resume().catch((e) => console.error("[Audio] Resume failed:", e));
       return;
     }
     try {
-      const notes = [523.25, 659.25, 783.99, 1046.5];
-      notes.forEach((freq, i) => {
+      // 3 loud beeps: 880 Hz square wave, 200ms on / 100ms gap
+      const BEEP_FREQ = 880;
+      const BEEP_MS   = 0.20;
+      const GAP_MS    = 0.10;
+      const GAIN_VAL  = 1.5;
+      for (let i = 0; i < 3; i++) {
+        const t    = ctx.currentTime + i * (BEEP_MS + GAP_MS);
         const osc  = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.type            = "sine";
-        osc.frequency.value = freq;
-        const t = ctx.currentTime + i * 0.18;
-        gain.gain.setValueAtTime(0, t);
-        gain.gain.linearRampToValueAtTime(0.28, t + 0.04);
-        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        osc.type            = "square";
+        osc.frequency.value = BEEP_FREQ;
+        gain.gain.setValueAtTime(GAIN_VAL, t);
+        gain.gain.setValueAtTime(0, t + BEEP_MS);
         osc.start(t);
-        osc.stop(t + 0.35);
-      });
+        osc.stop(t + BEEP_MS);
+      }
     } catch (e) {
-      console.error("[Audio] playMelody error:", e);
+      console.error("[Audio] playOrderAlarm error:", e);
     }
   }, []);
 
   const startLoop = useCallback(() => {
     if (loopRef.current !== null) return;
-    playMelody();
-    loopRef.current = setInterval(playMelody, 2500);
-  }, [playMelody]);
+    playOrderAlarm();
+    loopRef.current = setInterval(playOrderAlarm, 2500);
+  }, [playOrderAlarm]);
 
   const stopLoop = useCallback(() => {
     if (loopRef.current !== null) {
@@ -717,7 +718,7 @@ function OrdersPanel({
           </button>
         ) : (
           <button
-            onClick={playMelody}
+            onClick={playOrderAlarm}
             className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl transition-colors"
             style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
             onMouseEnter={(e) => { e.currentTarget.style.color = C.gold; e.currentTarget.style.borderColor = `${C.gold}44`; }}
