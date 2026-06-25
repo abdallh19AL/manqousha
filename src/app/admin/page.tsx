@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import PageDecorations from "@/components/PageDecorations";
-import { printOrderReceipt } from "@/components/PrintReceipt";
 import { DUMMY_PRODUCTS } from "@/lib/dummy-products";
 import type { OrderStatus, OrderWithItems, Product, ComboDealWithSteps, ComboStep, ComboStepOption } from "@/types";
 
@@ -189,22 +188,24 @@ function LoginForm() {
    Store control panel — compact slim bar
 ══════════════════════════════════════════════════════════════ */
 function StoreControlPanel() {
-  const [paused,           setPaused]           = useState<boolean | null>(null);
-  const [message,          setMessage]          = useState("");
-  const [toggling,         setToggling]         = useState(false);
-  const [saving,           setSaving]           = useState(false);
-  const [saved,            setSaved]            = useState(false);
-  const [showMsgEdit,      setShowMsgEdit]      = useState(false);
-  const [openingTime,      setOpeningTime]      = useState("10:00");
-  const [closingTime,      setClosingTime]      = useState("03:00");
-  const [autoCloseEnabled, setAutoCloseEnabled] = useState(true);
-  const [savingHours,      setSavingHours]      = useState(false);
-  const [hoursSaved,       setHoursSaved]       = useState(false);
+  const [paused,             setPaused]             = useState<boolean | null>(null);
+  const [message,            setMessage]            = useState("");
+  const [toggling,           setToggling]           = useState(false);
+  const [saving,             setSaving]             = useState(false);
+  const [saved,              setSaved]              = useState(false);
+  const [showMsgEdit,        setShowMsgEdit]        = useState(false);
+  const [openingTime,        setOpeningTime]        = useState("10:00");
+  const [closingTime,        setClosingTime]        = useState("03:00");
+  const [autoCloseEnabled,   setAutoCloseEnabled]   = useState(true);
+  const [savingHours,        setSavingHours]        = useState(false);
+  const [hoursSaved,         setHoursSaved]         = useState(false);
+  const [electronicEnabled,  setElectronicEnabled]  = useState(true);
+  const [togglingElectronic, setTogglingElectronic] = useState(false);
 
   useEffect(() => {
     supabase
       .from("store_settings")
-      .select("orders_paused, pause_message, opening_time, closing_time, auto_close_enabled")
+      .select("orders_paused, pause_message, opening_time, closing_time, auto_close_enabled, electronic_payment_enabled")
       .eq("id", 1)
       .single()
       .then(({ data }) => {
@@ -214,6 +215,7 @@ function StoreControlPanel() {
           setOpeningTime(String(data.opening_time ?? "10:00:00").slice(0, 5));
           setClosingTime(String(data.closing_time ?? "03:00:00").slice(0, 5));
           setAutoCloseEnabled(Boolean(data.auto_close_enabled ?? true));
+          setElectronicEnabled(Boolean(data.electronic_payment_enabled ?? true));
         }
       });
   }, []);
@@ -381,6 +383,39 @@ function StoreControlPanel() {
           style={{ background: hoursSaved ? "#22C55E" : C.primary, color: "#fff" }}
         >
           {hoursSaved ? "✓ تم الحفظ" : savingHours ? "جاري الحفظ..." : "حفظ أوقات العمل"}
+        </button>
+      </div>
+
+      {/* Electronic payment toggle */}
+      <div className="px-4 py-3 flex items-center justify-between gap-4" style={{ background: C.surface, borderTop: `1px solid ${C.border}` }}>
+        <div className="min-w-0">
+          <p className="text-sm font-bold" style={{ color: C.text }}>💳 الدفع الإلكتروني</p>
+          <p className="text-xs mt-0.5" style={{ color: C.faint }}>تفعيل أو تعطيل خيار الدفع الإلكتروني للزبائن</p>
+        </div>
+        <button
+          onClick={async () => {
+            if (togglingElectronic) return;
+            setTogglingElectronic(true);
+            const next = !electronicEnabled;
+            const { error } = await supabase
+              .from("store_settings")
+              .update({ electronic_payment_enabled: next })
+              .eq("id", 1);
+            if (!error) setElectronicEnabled(next);
+            setTogglingElectronic(false);
+          }}
+          disabled={togglingElectronic}
+          dir="ltr"
+          className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
+          style={{ background: electronicEnabled ? "#22C55E" : "#D1D5DB" }}
+        >
+          {togglingElectronic
+            ? <Loader2 className="w-3 h-3 animate-spin absolute inset-0 m-auto text-white" />
+            : <span
+                className="inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
+                style={{ transform: electronicEnabled ? "translateX(22px)" : "translateX(2px)" }}
+              />
+          }
         </button>
       </div>
     </div>
@@ -1049,7 +1084,7 @@ function OrdersPanel({
                       </select>
                       {/* Print */}
                       <button
-                        onClick={() => printOrderReceipt(order)}
+                        onClick={() => window.open(`/receipt/${order.id}`, "_blank")}
                         className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
                         style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
                         onMouseEnter={(e) => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = C.muted; }}
