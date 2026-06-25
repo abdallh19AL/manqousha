@@ -40,7 +40,7 @@ export function printOrderReceipt(order: OrderWithItems): void {
 <meta charset="UTF-8" />
 <title>فاتورة #${shortId}</title>
 <style>
-  @page { size: 80mm auto; margin: 0; }
+  @page { size: 98mm 148mm; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     width: 80mm;
@@ -133,7 +133,7 @@ export function printOrderReceipt(order: OrderWithItems): void {
   const popup = window.open(
     "",
     "_blank",
-    "width=320,height=600,toolbar=0,menubar=0,location=0,status=0"
+    "width=98,height=148,toolbar=0,menubar=0,location=0,status=0"
   );
   if (!popup) {
     alert("يرجى السماح بالنوافذ المنبثقة لطباعة الفاتورة");
