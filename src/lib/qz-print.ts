@@ -46,7 +46,7 @@ export async function printReceipt(order: OrderWithItems): Promise<void> {
   }).join("");
 
   const html = `
-    <div style="width:280px;font-family:'Cairo','Tahoma',sans-serif;direction:rtl;color:#000;padding:8px;">
+    <div style="width:100%;max-width:560px;box-sizing:border-box;font-family:'Cairo','Tahoma',sans-serif;direction:rtl;color:#000;padding:8px;">
       <div style="text-align:center;font-size:22px;font-weight:bold;margin-bottom:8px;">منقوشة و نار</div>
       <div style="text-align:center;font-size:13px;">طلب #${orderNum}</div>
       <div style="text-align:center;font-size:12px;margin-bottom:6px;">${dateStr}</div>
@@ -73,6 +73,12 @@ export async function printReceipt(order: OrderWithItems): Promise<void> {
     </div>
   `;
 
-  const cfg = qz.configs.create(printerName, { rasterize: true, scaleContent: true });
+  const cfg = qz.configs.create(printerName, {
+    rasterize: true,
+    scaleContent: true,
+    size: { width: 72, height: null },
+    units: "mm",
+    margins: { top: 0, right: 0, bottom: 0, left: 0 },
+  });
   await qz.print(cfg, [{ type: "html", format: "plain", data: html }]);
 }
