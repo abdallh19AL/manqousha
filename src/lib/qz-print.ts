@@ -25,6 +25,11 @@ let connectPromise: Promise<void> | null = null;
 async function ensureConnected(): Promise<void> {
   const qz = window.qz;
   if (!qz) throw new Error("QZ Tray غير محمّل");
+
+  // Set up unsigned certificate (local trusted mode)
+  qz.security.setCertificatePromise((resolve: (v: string) => void) => resolve(""));
+  qz.security.setSignaturePromise(() => (resolve: (v: string) => void) => resolve(""));
+
   if (qz.websocket.isActive()) return;
   if (!connectPromise) {
     connectPromise = qz.websocket.connect().catch((e: unknown) => {
