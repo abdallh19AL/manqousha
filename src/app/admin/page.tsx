@@ -3419,6 +3419,15 @@ export default function AdminPage() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (document.getElementById("qz-script")) return;
+    const script = document.createElement("script");
+    script.id = "qz-script";
+    script.src = "https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js";
+    script.async = true;
+    document.head.appendChild(script);
+  }, []);
+
   if (userEmail === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: C.bg }}>
