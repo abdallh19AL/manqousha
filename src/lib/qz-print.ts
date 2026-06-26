@@ -117,7 +117,13 @@ export async function printReceipt(order: OrderWithItems): Promise<void> {
   await ensureConnected();
   const qz = window.qz;
   const printerName = await qz.printers.getDefault();
-  const cfg = qz.configs.create(printerName, { encoding: "CP864" });
+  const cfg = qz.configs.create(printerName);
   const data = buildReceipt(order);
-  await qz.print(cfg, [{ type: "raw", format: "plain", data }]);
+
+  // Convert string to hex for raw ESC/POS transmission
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(data);
+  const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+  await qz.print(cfg, [{ type: "raw", format: "hex", data: hex }]);
 }
