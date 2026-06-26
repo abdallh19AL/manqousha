@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, Banknote, Bell, CheckCircle2, ChevronDown, ChevronUp,
-  CreditCard, FileText, ImagePlus, Loader2, Map, Pencil, Phone, Printer,
+  CreditCard, FileText, ImagePlus, Loader2, Pencil, Phone, Printer,
   PauseCircle, PlayCircle, Search, ShieldOff, Trash2, Utensils, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -849,7 +849,6 @@ function OrdersPanel({
             const isNew         = newIds.has(order.id);
             const cfg           = STATUS_CONFIG[order.status];
             const isExpanded    = expandedId === order.id;
-            const hasLocation   = order.latitude != null && order.longitude != null;
             const isDeletable   = order.status === "delivered" || order.status === "cancelled";
             const ageHours      = (Date.now() - new Date(order.created_at).getTime()) / 3_600_000;
             const hoursLeft     = Math.max(0, Math.ceil(24 - ageHours));
@@ -936,25 +935,9 @@ function OrdersPanel({
                         {order.customer_phone}
                       </a>
                       {order.delivery_zone && (
-                        <span className="font-bold" style={{ color: order.delivery_zone === "K10" ? C.muted : "#F97316" }}>
+                        <span className="font-bold" style={{ color: "#F97316" }}>
                           {order.delivery_zone}
-                          {order.distance_km != null && (
-                            <span style={{ color: C.faint }} className="font-normal"> — {Number(order.distance_km).toFixed(1)} كم</span>
-                          )}
                         </span>
-                      )}
-                      {hasLocation && (
-                        <a
-                          href={`https://maps.google.com/?q=${order.latitude},${order.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 font-bold px-2.5 py-1 rounded-full transition-colors"
-                          style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = C.gold; e.currentTarget.style.borderColor = `${C.gold}44`; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border; }}
-                        >
-                          <Map className="w-3 h-3 shrink-0" /> فتح الخريطة 📍
-                        </a>
                       )}
                       {showCountdown && (
                         <span style={{ color: hoursLeft <= 2 ? "#F59E0B" : C.faint }}>
