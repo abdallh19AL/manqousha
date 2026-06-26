@@ -1105,7 +1105,7 @@ export default function CartPage() {
             </div>
 
             {/* ══ Delivery summary (shown after map pin confirmed) ══ */}
-            {location !== null && (
+            {selectedZone !== null && (
               <div
                 className="rounded-2xl overflow-hidden"
                 style={{ border: `1px solid ${C.primary}28` }}
@@ -1126,11 +1126,9 @@ export default function CartPage() {
                     className="mr-auto text-xs font-bold px-2.5 py-1 rounded-full"
                     style={{ background: `${C.primary}18`, color: C.primary }}
                   >
-                    {zoneStatus === "matched" && zoneInfo
-                      ? zoneInfo.zoneCode
-                      : distanceKm !== null
+                    {selectedZone === "K10" && distanceKm !== null
                       ? `${distanceKm.toFixed(1)} كم`
-                      : ""}
+                      : selectedZone ?? ""}
                   </span>
                 </div>
 
@@ -1150,15 +1148,11 @@ export default function CartPage() {
                     <div>
                       <span style={{ color: C.muted }}>رسوم التوصيل</span>
                       <p className="text-xs mt-0.5" style={{ color: C.faint }}>
-                        {zoneStatus === "loading" ? (
-                          <span className="flex items-center gap-1">
-                            <Loader2 className="w-3 h-3 animate-spin" /> جاري التحديد...
-                          </span>
-                        ) : zoneStatus === "matched" && zoneInfo ? (
-                          `📍 ${zoneInfo.matchedArea}`
-                        ) : distanceKm !== null ? (
-                          `📍 حسب المسافة · ${distanceKm.toFixed(1)} كم`
-                        ) : null}
+                        {selectedZone === "K10" && distanceKm !== null
+                          ? `📍 حسب المسافة · ${distanceKm.toFixed(1)} كم`
+                          : selectedZone
+                          ? `📍 ${selectedZone}`
+                          : null}
                       </p>
                     </div>
                     <span className="font-bold" style={{ color: (freeDelivery || freeDeliveryOffer) ? "#22C55E" : C.gold }}>
