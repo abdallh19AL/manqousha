@@ -61,6 +61,8 @@ export default function CartPage() {
   const [mapLat,          setMapLat]          = useState<number | null>(null);
   const [mapLng,          setMapLng]          = useState<number | null>(null);
   const [mapAddress,      setMapAddress]      = useState("");
+  const [cityArea,        setCityArea]        = useState("");
+  const [cityAreaTouched, setCityAreaTouched] = useState(false);
   const [nameTouched,     setNameTouched]     = useState(false);
   const [phoneTouched,    setPhoneTouched]    = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -83,8 +85,15 @@ export default function CartPage() {
 
   const { user } = useAuth();
   const [saveProfile, setSaveProfile] = useState(true);
-  const { ordersPaused, pauseMessage, outsideHours, openingTime } = useStoreSettings();
+  const { ordersPaused, pauseMessage, outsideHours, openingTime, electronicPaymentEnabled } = useStoreSettings();
   const isStoreClosed = ordersPaused || outsideHours;
+
+  // Reset payment method if electronic gets disabled remotely
+  useEffect(() => {
+    if (!electronicPaymentEnabled && paymentMethod === "electronic") {
+      setPaymentMethod(null);
+    }
+  }, [electronicPaymentEnabled, paymentMethod]);
 
   // ── Fetch live delivery zone fees from DB ────────────────────
   useEffect(() => { fetchZoneFees().then(setZoneFees); }, []);
@@ -108,6 +117,7 @@ export default function CartPage() {
         if (p.paymentMethod === "cash" || p.paymentMethod === "electronic") {
           setPaymentMethod(p.paymentMethod as PaymentMethod);
         }
+        if (typeof p.cityArea === "string") setCityArea(p.cityArea);
       }
     } catch { /* ignore corrupted data */ }
     setIsRestored(true);
@@ -224,13 +234,14 @@ export default function CartPage() {
           notes:          form.notes,
           location,
           paymentMethod,
+          cityArea,
         }));
       } catch { /* storage quota exceeded */ }
     }, 400);
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [form, location, paymentMethod, isRestored]);
+  }, [form, location, paymentMethod, cityArea, isRestored]);
 
   // ── Delivery calculation ──────────────────────────────────────
   const subtotal   = getTotal();
@@ -253,11 +264,13 @@ export default function CartPage() {
     ? "رقم غير صحيح — مثال: 0791234567" : null;
   const locationError = !location
     ? "يرجى تحديد موقعك على الخريطة" : null;
-  const isFormValid   = !nameError && !phoneError && !locationError && paymentMethod !== null;
+  const cityAreaError = cityArea.trim().length < 2 ? "يرامع بلطي يلزم يحلا وا ةنيدملا مسا" : null;
+  const isFormValid   = !nameError && !phoneError && !locationError && !cityAreaError && paymentMethod !== null;
 
   const showNameError    = (nameTouched  || submitAttempted) && !!nameError;
   const showPhoneError   = (phoneTouched || submitAttempted) && !!phoneError;
   const showLocError     = submitAttempted && !!locationError;
+  const showCityAreaError = (cityAreaTouched || submitAttempted) && !!cityAreaError;
   const showPaymentError = submitAttempted && !paymentMethod;
 
   // ── Submit ────────────────────────────────────────────────────
@@ -268,12 +281,34 @@ export default function CartPage() {
     setLoading(true);
     setSubmitError("");
     try {
+      // For electronic: get PaymentURL BEFORE creating any order in the DB
+      let paymentUrl: string | null = null;
+      const preOrderId = paymentMethod === "electronic" ? crypto.randomUUID() : null;
+      if (paymentMethod === "electronic") {
+        const payRes = await fetch("/api/payment/initiate", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({
+            orderId:       preOrderId,
+            amount:        grandTotal,
+            customerName:  form.customer_name.trim(),
+            customerPhone: form.customer_phone.trim(),
+          }),
+        });
+        const payData = await payRes.json() as { paymentUrl?: string; error?: string };
+        if (!payRes.ok || !payData.paymentUrl) {
+          throw new Error(payData.error ?? "فشل تهيئة الدفع الإلكتروني");
+        }
+        paymentUrl = payData.paymentUrl;
+      }
+
       const { data: order, error: orderErr } = await supabase
         .from("orders")
         .insert({
+          ...(preOrderId && { id: preOrderId }),
           customer_name:    form.customer_name.trim(),
           customer_phone:   form.customer_phone.trim(),
-          customer_address: "",
+          customer_address: cityArea.trim(),
           notes:            freeDelivery
             ? `${form.notes.trim() ? form.notes.trim() + " | " : ""}🎁 توصيل مجاني - عرض الولاء (الطلب الخامس)`
             : form.notes.trim() || null,
@@ -323,24 +358,10 @@ export default function CartPage() {
         console.error("[cart] order_items insert failed:", itemsErr);
         throw itemsErr;
       }
-      if (paymentMethod === "electronic") {
-        const payRes = await fetch("/api/payment/initiate", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({
-            orderId:       order.id,
-            amount:        grandTotal,
-            customerName:  form.customer_name.trim(),
-            customerPhone: form.customer_phone.trim(),
-          }),
-        });
-        const payData = await payRes.json() as { paymentUrl?: string; error?: string };
-        if (!payRes.ok || !payData.paymentUrl) {
-          throw new Error(payData.error ?? "فشل تهيئة الدفع الإلكتروني");
-        }
+      if (paymentMethod === "electronic" && paymentUrl) {
         clearCart();
         try { localStorage.removeItem("manqousha-delivery-info"); } catch { /* ignore */ }
-        window.location.href = payData.paymentUrl;
+        window.location.href = paymentUrl;
         return;
       }
 
@@ -826,6 +847,22 @@ export default function CartPage() {
               )}
             </div>
 
+            <Field
+              label="يلا وا ةنيدملا مسا"
+              required
+              valid={!cityAreaError && cityAreaTouched}
+              error={showCityAreaError ? cityAreaError : null}
+            >
+              <input
+                type="text"
+                value={cityArea}
+                onChange={(e) => setCityArea(e.target.value)}
+                onBlur={() => setCityAreaTouched(true)}
+                placeholder="لاثم : حلاوص وا ادلخ وا ةيلامشلا"
+                style={inputStyle(showCityAreaError, !cityAreaError && cityAreaTouched)}
+              />
+            </Field>
+
             {/* Notes */}
             <Field label="ملاحظات" required={false} valid={false} error={null}>
               <textarea
@@ -864,7 +901,7 @@ export default function CartPage() {
                 {paymentMethod === "cash" && <span style={{ color: "#22C55E" }}>✓</span>}
               </label>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid gap-3 ${electronicPaymentEnabled ? "grid-cols-2" : "grid-cols-1"}`}>
                 {/* Cash on Delivery */}
                 <button
                   type="button"
@@ -898,8 +935,8 @@ export default function CartPage() {
                   </span>
                 </button>
 
-                {/* Electronic Payment */}
-                <button
+                {/* Electronic Payment — only rendered when enabled from admin */}
+                {electronicPaymentEnabled && <button
                   type="button"
                   onClick={() => { setPaymentMethod("electronic"); setElectronicSub(null); setShowElecMsg(false); }}
                   className="flex flex-col items-center gap-3 p-6 rounded-2xl transition-all text-center"
@@ -929,7 +966,7 @@ export default function CartPage() {
                   >
                     ✓ متاح
                   </span>
-                </button>
+                </button>}
               </div>
 
               {paymentMethod === "electronic" && (

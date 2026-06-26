@@ -21,20 +21,22 @@ function isOutsideWorkingHours(openingTime: string, closingTime: string): boolea
 }
 
 export interface StoreSettingsState {
-  ordersPaused: boolean;
-  pauseMessage: string;
-  loading: boolean;
-  outsideHours: boolean;
-  openingTime: string;
+  ordersPaused:             boolean;
+  pauseMessage:             string;
+  loading:                  boolean;
+  outsideHours:             boolean;
+  openingTime:              string;
+  electronicPaymentEnabled: boolean;
 }
 
 export function useStoreSettings(): StoreSettingsState {
-  const [ordersPaused,      setOrdersPaused]      = useState(false);
-  const [pauseMessage,      setPauseMessage]      = useState(DEFAULT_MESSAGE);
-  const [loading,           setLoading]           = useState(true);
-  const [openingTime,       setOpeningTime]       = useState("10:00");
-  const [closingTime,       setClosingTime]       = useState("03:00");
-  const [autoCloseEnabled,  setAutoCloseEnabled]  = useState(true);
+  const [ordersPaused,             setOrdersPaused]             = useState(false);
+  const [pauseMessage,             setPauseMessage]             = useState(DEFAULT_MESSAGE);
+  const [loading,                  setLoading]                  = useState(true);
+  const [openingTime,              setOpeningTime]              = useState("10:00");
+  const [closingTime,              setClosingTime]              = useState("03:00");
+  const [autoCloseEnabled,         setAutoCloseEnabled]         = useState(true);
+  const [electronicPaymentEnabled, setElectronicPaymentEnabled] = useState(true);
 
   // Unique channel name per hook instance so multiple pages don't collide.
   const channelId = useRef(`store-settings-${Math.random().toString(36).slice(2)}`);
@@ -42,7 +44,7 @@ export function useStoreSettings(): StoreSettingsState {
   useEffect(() => {
     supabase
       .from("store_settings")
-      .select("orders_paused, pause_message, opening_time, closing_time, auto_close_enabled")
+      .select("orders_paused, pause_message, opening_time, closing_time, auto_close_enabled, electronic_payment_enabled")
       .eq("id", 1)
       .single()
       .then(({ data }) => {
@@ -52,6 +54,7 @@ export function useStoreSettings(): StoreSettingsState {
           setOpeningTime(String(data.opening_time ?? "10:00:00").slice(0, 5));
           setClosingTime(String(data.closing_time ?? "03:00:00").slice(0, 5));
           setAutoCloseEnabled(Boolean(data.auto_close_enabled ?? true));
+          setElectronicPaymentEnabled(Boolean(data.electronic_payment_enabled ?? true));
         }
         setLoading(false);
       });
@@ -68,6 +71,7 @@ export function useStoreSettings(): StoreSettingsState {
           setOpeningTime(String(d.opening_time ?? "10:00:00").slice(0, 5));
           setClosingTime(String(d.closing_time ?? "03:00:00").slice(0, 5));
           setAutoCloseEnabled(Boolean(d.auto_close_enabled ?? true));
+          setElectronicPaymentEnabled(Boolean(d.electronic_payment_enabled ?? true));
         }
       )
       .subscribe();
@@ -80,5 +84,5 @@ export function useStoreSettings(): StoreSettingsState {
     [autoCloseEnabled, openingTime, closingTime],
   );
 
-  return { ordersPaused, pauseMessage, loading, outsideHours, openingTime };
+  return { ordersPaused, pauseMessage, loading, outsideHours, openingTime, electronicPaymentEnabled };
 }
