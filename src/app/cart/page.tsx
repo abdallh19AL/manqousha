@@ -61,8 +61,7 @@ export default function CartPage() {
   const [mapLat,          setMapLat]          = useState<number | null>(null);
   const [mapLng,          setMapLng]          = useState<number | null>(null);
   const [mapAddress,      setMapAddress]      = useState("");
-  const [cityArea,        setCityArea]        = useState("");
-  const [cityAreaTouched, setCityAreaTouched] = useState(false);
+  const [selectedZone,    setSelectedZone]    = useState<string | null>(null);
   const [nameTouched,     setNameTouched]     = useState(false);
   const [phoneTouched,    setPhoneTouched]    = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -117,7 +116,7 @@ export default function CartPage() {
         if (p.paymentMethod === "cash" || p.paymentMethod === "electronic") {
           setPaymentMethod(p.paymentMethod as PaymentMethod);
         }
-        if (typeof p.cityArea === "string") setCityArea(p.cityArea);
+        if (typeof p.selectedZone === "string") setSelectedZone(p.selectedZone);
       }
     } catch { /* ignore corrupted data */ }
     setIsRestored(true);
@@ -234,27 +233,26 @@ export default function CartPage() {
           notes:          form.notes,
           location,
           paymentMethod,
-          cityArea,
+          selectedZone,
         }));
       } catch { /* storage quota exceeded */ }
     }, 400);
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [form, location, paymentMethod, cityArea, isRestored]);
+  }, [form, location, paymentMethod, selectedZone, isRestored]);
 
   // ── Delivery calculation ──────────────────────────────────────
   const subtotal   = getTotal();
   const distanceKm = location
     ? haversineKm(RESTAURANT_LAT, RESTAURANT_LNG, location.lat, location.lng)
     : null;
-  const deliveryFee =
-    zoneStatus === "matched" && zoneInfo
-      ? (zoneFees[zoneInfo.zoneCode] ?? zoneInfo.fee)
-      : distanceKm !== null
-      ? Math.round((zoneFees["K10"] ?? K10_RATE_PER_KM) * distanceKm * 100) / 100
-      : 0;
-  const effectiveDeliveryFee = (freeDelivery || freeDeliveryOffer) ? 0 : deliveryFee;
+  const selectedFee = selectedZone === "K10"
+    ? Math.round((zoneFees["K10"] ?? K10_RATE_PER_KM) * (distanceKm ?? 0) * 100) / 100
+    : selectedZone
+    ? (zoneFees[selectedZone] ?? 0)
+    : 0;
+  const effectiveDeliveryFee = (freeDelivery || freeDeliveryOffer) ? 0 : selectedFee;
   const grandTotal = subtotal + effectiveDeliveryFee;
 
   // ── Validation ────────────────────────────────────────────────
@@ -264,14 +262,14 @@ export default function CartPage() {
     ? "رقم غير صحيح — مثال: 0791234567" : null;
   const locationError = !location
     ? "يرجى تحديد موقعك على الخريطة" : null;
-  const cityAreaError = cityArea.trim().length < 2 ? "يرجى كتابة اسم المدينة أو الحي" : null;
-  const isFormValid   = !nameError && !phoneError && !locationError && !cityAreaError && paymentMethod !== null;
+  const zoneSelectionError = !selectedZone ? "يرجى اختيار منطقة التوصيل" : null;
+  const isFormValid   = !nameError && !phoneError && !locationError && !zoneSelectionError && paymentMethod !== null;
 
-  const showNameError    = (nameTouched  || submitAttempted) && !!nameError;
-  const showPhoneError   = (phoneTouched || submitAttempted) && !!phoneError;
-  const showLocError     = submitAttempted && !!locationError;
-  const showCityAreaError = (cityAreaTouched || submitAttempted) && !!cityAreaError;
-  const showPaymentError = submitAttempted && !paymentMethod;
+  const showNameError          = (nameTouched  || submitAttempted) && !!nameError;
+  const showPhoneError         = (phoneTouched || submitAttempted) && !!phoneError;
+  const showLocError           = submitAttempted && !!locationError;
+  const showZoneSelectionError = submitAttempted && !!zoneSelectionError;
+  const showPaymentError       = submitAttempted && !paymentMethod;
 
   // ── Submit ────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
@@ -308,7 +306,7 @@ export default function CartPage() {
           ...(preOrderId && { id: preOrderId }),
           customer_name:    form.customer_name.trim(),
           customer_phone:   form.customer_phone.trim(),
-          customer_address: cityArea.trim(),
+          customer_address: selectedZone ?? "",
           notes:            freeDelivery
             ? `${form.notes.trim() ? form.notes.trim() + " | " : ""}🎁 توصيل مجاني - عرض الولاء (الطلب الخامس)`
             : form.notes.trim() || null,
@@ -316,12 +314,12 @@ export default function CartPage() {
           status:           "pending",
           payment_method:   paymentMethod ?? "cash",
           ...(user && { user_id: user.id }),
-          delivery_fee:     effectiveDeliveryFee,
+          delivery_fee:     selectedZone === "K10"
+            ? Math.round((zoneFees["K10"] ?? K10_RATE_PER_KM) * (distanceKm ?? 0) * 100) / 100
+            : (zoneFees[selectedZone ?? ""] ?? 0),
           ...(distanceKm !== null && { distance_km: Math.round(distanceKm * 100) / 100 }),
           ...(mapLat != null && mapLng != null && { latitude: mapLat, longitude: mapLng }),
-          delivery_zone: zoneStatus === "matched" && zoneInfo
-            ? zoneInfo.zoneCode
-            : location !== null ? "K10" : null,
+          delivery_zone: selectedZone,
         })
         .select()
         .single();
@@ -793,76 +791,105 @@ export default function CartPage() {
               />
             </Field>
 
-            {/* Location */}
+            {/* Zone selector */}
             <div>
-              <label
-                className="flex items-center gap-1.5 text-xs font-bold mb-2"
-                style={{ color: C.muted }}
+              <label className="flex items-center gap-1.5 text-xs font-bold mb-2" style={{ color: C.muted }}>
+                اختر منطقة التوصيل
+                <span style={{ color: C.primary }}>*</span>
+                {selectedZone && <span style={{ color: "#22C55E" }}>✓</span>}
+              </label>
+              <select
+                value={selectedZone ?? ""}
+                onChange={(e) => {
+                  setSelectedZone(e.target.value || null);
+                  if (e.target.value !== "K10") {
+                    setLocation(null);
+                    setMapLat(null);
+                    setMapLng(null);
+                    setMapAddress("");
+                    setZoneStatus("idle");
+                    setZoneInfo(null);
+                  }
+                }}
+                style={{
+                  ...inputStyle(!!showZoneSelectionError, !!selectedZone),
+                  appearance: "none",
+                  cursor: "pointer",
+                }}
+                dir="rtl"
               >
-                موقع التوصيل <span style={{ color: C.primary }}>*</span>
+                <option value="">-- اختر حيك أو منطقتك --</option>
+                <optgroup label="2.00 د.أ — K1">
+                  <option value="K1">تلاع العلي · شارع الجاردنز · أم السماق · شارع المدينة · البركة</option>
+                </optgroup>
+                <optgroup label="2.50 د.أ — K2">
+                  <option value="K2">الرابية · خلدا · الروابي · ضاحية الرشيد · ضاحية الروضة · الجندويل · المدينة الطبية · ضاحية الأمير راشد · أم أذينة · طلوع نيفين · مجمع الأعمال · مكة مول · سيتي مول</option>
+                </optgroup>
+                <optgroup label="3.00 د.أ — K3">
+                  <option value="K3">صويلح · الشميساني · دابوق · الجبيهة · الصويفية · الرابع · السادس · السابع · المدينة الرياضية · عرجان · الكرسي · السهل</option>
+                </optgroup>
+                <optgroup label="3.50 د.أ — K4">
+                  <option value="K4">العبدلي · عبدون · دير غبار · البياضة · الرونق · الحسين · مستشفى إسلامي · الكمالية · زويتينة · أم الأسود · جبل عمان · دوار الداخلية · وادي صقور</option>
+                </optgroup>
+                <optgroup label="4.00 د.أ — K5">
+                  <option value="K5">النزهة · ضاحية الاستقلال · ضاحية الأقصى · اللويبدة · مستشفى الاستقلال · ضاحية الأمير حسن · عين الباشا · أبو سوس · شارع الرينبو · رأس العين · طبربور · صافوط · وادي السير · فحيص · ماحص · أم السوس</option>
+                </optgroup>
+                <optgroup label="5.00 د.أ — K6">
+                  <option value="K6">الياسمين · أبو نصير · شفا بدران · مرج الحمام · أبو علياء · إسكان التلفزيون · الرحبة الشمالية · الرحبة الجنوبية · بدر الجديدة · وسط البلد · الأشرفية · حي الصحابة · رغدان · الهاشمي · البقعة</option>
+                </optgroup>
+                <optgroup label="6.00 د.أ — K7">
+                  <option value="K7">ناعور · الوحدات · المقابلين · حي النزال · الجبل الأخضر · جبل النصر · عدن · عراق الأمير · المباني · جبل الزهور · ضاحية الحاج حسن · شارع الحرية · المنارة · أم النوارة</option>
+                </optgroup>
+                <optgroup label="7.00 د.أ — K8">
+                  <option value="K8">الجويدة · جاوا · علندا · صالحية العابد · اليادودة · القويسمة · ماركا الشمالية · ماركا الجنوبية · خريبة السوق</option>
+                </optgroup>
+                <optgroup label="9.00 د.أ — K9">
+                  <option value="K9">الرصيفة · سحاب · المشيرفة · الجبل الشمالي</option>
+                </optgroup>
+                <optgroup label="سعر حسب المسافة — خارج النطاق">
+                  <option value="K10">📍 منطقتي غير مذكورة (سعر حسب المسافة)</option>
+                </optgroup>
+              </select>
+              {showZoneSelectionError && (
+                <p className="text-xs mt-1.5" style={{ color: "#E84040" }}>{zoneSelectionError}</p>
+              )}
+            </div>
+
+            {/* Map picker — always shown, required for K10 */}
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-bold mb-2" style={{ color: C.muted }}>
+                حدد موقعك على الخريطة
+                <span style={{ color: C.primary }}>*</span>
                 {location && <span style={{ color: "#22C55E" }}>✓</span>}
               </label>
-
-              {/* ── Map picker ── */}
-              <div className="space-y-2">
-                <label className="block text-sm font-black" style={{ color: C.text }}>
-                  📍 حدد موقع التوصيل
-                </label>
-                <p className="text-xs" style={{ color: C.muted }}>
-                  اسحب الدبوس أو اضغط على الخريطة لتحديد موقعك بدقة
+              <p className="text-xs mb-2" style={{ color: C.muted }}>
+                {selectedZone === "K10"
+                  ? "ضع الدبوس على موقعك بدقة — السعر يُحسب حسب المسافة"
+                  : "ضع الدبوس على موقعك بدقة عشان يوصلك السائق"}
+              </p>
+              <MapPicker
+                onLocationSelect={(lat, lng, address) => {
+                  setMapLat(lat);
+                  setMapLng(lng);
+                  setMapAddress(address);
+                  setLocation({ lat, lng });
+                }}
+              />
+              {mapAddress && (
+                <div className="rounded-xl px-3 py-2 mt-2" style={{ background: "#F0FDF4", border: "1px solid #86EFAC" }}>
+                  <p className="text-xs font-bold" style={{ color: "#166534" }}>✅ تم تحديد موقعك</p>
+                  <p className="text-xs mt-0.5" style={{ color: "#166534", opacity: 0.8 }}>{mapAddress}</p>
+                </div>
+              )}
+              {selectedZone === "K10" && location && distanceKm !== null && (
+                <p className="text-xs mt-2 font-bold" style={{ color: C.gold }}>
+                  📍 المسافة: {distanceKm.toFixed(1)} كم · رسوم التوصيل التقريبية: {selectedFee.toFixed(2)} د.أ
                 </p>
-                <MapPicker
-                  onLocationSelect={(lat, lng, address) => {
-                    setMapLat(lat);
-                    setMapLng(lng);
-                    setMapAddress(address);
-                    setLocation({ lat, lng });
-                  }}
-                />
-                {mapAddress && (
-                  <div className="rounded-xl px-3 py-2" style={{ background: "#F0FDF4", border: "1px solid #86EFAC" }}>
-                    <p className="text-xs font-bold" style={{ color: "#166534" }}>
-                      ✅ تم تحديد موقعك
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: "#166534", opacity: 0.8 }}>
-                      {mapAddress}
-                    </p>
-                  </div>
-                )}
-                {zoneStatus === "loading" && (
-                  <p className="text-xs flex items-center gap-1" style={{ color: C.faint }}>
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    جاري تحديد منطقتك...
-                  </p>
-                )}
-                {zoneStatus === "matched" && zoneInfo && (
-                  <p className="text-xs font-bold" style={{ color: "#166634" }}>
-                    📍 {zoneInfo.matchedArea} · {zoneInfo.zoneCode}
-                  </p>
-                )}
-              </div>
-
+              )}
               {showLocError && (
                 <p className="text-xs mt-1.5" style={{ color: "#E84040" }}>{locationError}</p>
               )}
             </div>
-
-            <Field
-              label="اسم المدينة أو الحي"
-              required
-              valid={!cityAreaError && cityAreaTouched}
-              error={showCityAreaError ? cityAreaError : null}
-            >
-              <input
-                type="text"
-                value={cityArea}
-                onChange={(e) => setCityArea(e.target.value)}
-                onBlur={() => setCityAreaTouched(true)}
-                placeholder="مثال: صويلح أو خلدا أو الشمالية"
-                dir="rtl"
-                style={inputStyle(showCityAreaError, !cityAreaError && cityAreaTouched)}
-              />
-            </Field>
 
             {/* Notes */}
             <Field label="ملاحظات" required={false} valid={false} error={null}>
