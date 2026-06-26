@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Banknote, CreditCard, Globe, MapPin, Navigation, ShoppingCart,
+  Banknote, CreditCard, Globe, MapPin, Navigation,
   Smartphone, Timer, Truck, Wallet,
 } from "lucide-react";
 import Footer from "@/components/Footer";
@@ -12,18 +12,12 @@ import PageDecorations from "@/components/PageDecorations";
 import { useCartStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
-import { reverseGeocode, matchZoneFromGeocode, fetchZoneFees, K10_RATE_PER_KM } from "@/lib/delivery-zones";
-import type { ZoneMatch } from "@/lib/delivery-zones";
+import { fetchZoneFees } from "@/lib/delivery-zones";
 import { useStoreSettings } from "@/lib/store-settings";
-import dynamic from "next/dynamic";
-
-const MapPicker = dynamic(() => import("@/components/MapPicker"), { ssr: false });
 
 const UUID_RE  = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PHONE_RE = /^(07\d{8}|\+9627\d{8})$/;
 
-const RESTAURANT_LAT = 31.9539;
-const RESTAURANT_LNG = 35.9106;
 
 type PaymentMethod = "cash" | "electronic";
 type ElectronicSub = "apple" | "google" | "card";
@@ -57,10 +51,6 @@ export default function CartPage() {
   const [loading,         setLoading]         = useState(false);
   const [success,         setSuccess]         = useState(false);
   const [submitError,     setSubmitError]     = useState("");
-  const [location,        setLocation]        = useState<{ lat: number; lng: number } | null>(null);
-  const [mapLat,          setMapLat]          = useState<number | null>(null);
-  const [mapLng,          setMapLng]          = useState<number | null>(null);
-  const [mapAddress,      setMapAddress]      = useState("");
   const [selectedZone,    setSelectedZone]    = useState<string | null>(null);
   const [nameTouched,     setNameTouched]     = useState(false);
   const [phoneTouched,    setPhoneTouched]    = useState(false);
@@ -71,8 +61,6 @@ export default function CartPage() {
   const [confirmedTotal,   setConfirmedTotal]   = useState(0);
   const [confirmedOrderId, setConfirmedOrderId] = useState("");
   const [isRestored,       setIsRestored]       = useState(false);
-  const [zoneStatus,       setZoneStatus]       = useState<"idle" | "loading" | "matched" | "fallback">("idle");
-  const [zoneInfo,         setZoneInfo]         = useState<ZoneMatch | null>(null);
   const [zoneFees,         setZoneFees]         = useState<Record<string, number>>({});
   const [freeDelivery,      setFreeDelivery]      = useState(false);
   const [streakMsg,         setStreakMsg]         = useState<string | null>(null);
@@ -80,7 +68,6 @@ export default function CartPage() {
 
   const saveTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profileFetchedRef = useRef(false);
-  const lastGeocodedRef   = useRef<string | null>(null);
 
   const { user } = useAuth();
   const [saveProfile, setSaveProfile] = useState(true);
@@ -108,11 +95,6 @@ export default function CartPage() {
           customer_phone: typeof p.customer_phone === "string" ? p.customer_phone : prev.customer_phone,
           notes:          typeof p.notes          === "string" ? p.notes          : prev.notes,
         }));
-        if (typeof p.location?.lat === "number" && typeof p.location?.lng === "number") {
-          setLocation({ lat: p.location.lat, lng: p.location.lng });
-          setMapLat(p.location.lat);
-          setMapLng(p.location.lng);
-        }
         if (p.paymentMethod === "cash" || p.paymentMethod === "electronic") {
           setPaymentMethod(p.paymentMethod as PaymentMethod);
         }
@@ -128,7 +110,7 @@ export default function CartPage() {
     profileFetchedRef.current = true;
     supabase
       .from("profiles")
-      .select("full_name, phone, last_latitude, last_longitude")
+      .select("full_name, phone")
       .eq("id", user.id)
       .single()
       .then(({ data: p }) => {
@@ -139,13 +121,6 @@ export default function CartPage() {
           customer_phone: prev.customer_phone || String(d.phone      ?? ""),
           notes:          prev.notes,
         }));
-        const lastLat = typeof d.last_latitude  === "number" ? (d.last_latitude  as number) : null;
-        const lastLng = typeof d.last_longitude === "number" ? (d.last_longitude as number) : null;
-        if (lastLat !== null && lastLng !== null) {
-          setLocation((prev) => prev ?? { lat: lastLat, lng: lastLng });
-          setMapLat((prev)    => prev ?? lastLat);
-          setMapLng((prev)    => prev ?? lastLng);
-        }
       });
   }, [isRestored, user]);
 
@@ -199,28 +174,6 @@ export default function CartPage() {
     })();
   }, [items]);
 
-  // ── Reverse-geocode location → delivery zone ─────────────────
-  useEffect(() => {
-    if (!location) return;
-    const key = `${location.lat.toFixed(4)},${location.lng.toFixed(4)}`;
-    if (key === lastGeocodedRef.current) return;
-    lastGeocodedRef.current = key;
-
-    setZoneStatus("loading");
-    setZoneInfo(null);
-
-    reverseGeocode(location.lat, location.lng).then((address) => {
-      if (!address) { setZoneStatus("fallback"); return; }
-      const match = matchZoneFromGeocode(address);
-      if (match) {
-        setZoneInfo(match);
-        setZoneStatus("matched");
-      } else {
-        setZoneStatus("fallback");
-      }
-    });
-  }, [location]);
-
   // ── Persist delivery info to localStorage (debounced 400 ms) ──
   useEffect(() => {
     if (!isRestored) return;
@@ -231,7 +184,6 @@ export default function CartPage() {
           customer_name:  form.customer_name,
           customer_phone: form.customer_phone,
           notes:          form.notes,
-          location,
           paymentMethod,
           selectedZone,
         }));
@@ -240,18 +192,11 @@ export default function CartPage() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [form, location, paymentMethod, selectedZone, isRestored]);
+  }, [form, paymentMethod, selectedZone, isRestored]);
 
   // ── Delivery calculation ──────────────────────────────────────
-  const subtotal   = getTotal();
-  const distanceKm = location
-    ? haversineKm(RESTAURANT_LAT, RESTAURANT_LNG, location.lat, location.lng)
-    : null;
-  const selectedFee = selectedZone === "K10"
-    ? Math.round((zoneFees["K10"] ?? K10_RATE_PER_KM) * (distanceKm ?? 0) * 100) / 100
-    : selectedZone
-    ? (zoneFees[selectedZone] ?? 0)
-    : 0;
+  const subtotal    = getTotal();
+  const selectedFee = selectedZone ? (zoneFees[selectedZone] ?? 0) : 0;
   const effectiveDeliveryFee = (freeDelivery || freeDeliveryOffer) ? 0 : selectedFee;
   const grandTotal = subtotal + effectiveDeliveryFee;
 
@@ -260,13 +205,11 @@ export default function CartPage() {
     ? "الاسم يجب أن يكون 3 أحرف على الأقل" : null;
   const phoneError    = !PHONE_RE.test(form.customer_phone.trim())
     ? "رقم غير صحيح — مثال: 0791234567" : null;
-  const locationError = selectedZone === "K10" && !location ? "يرجى تحديد موقعك على الخريطة" : null;
   const zoneSelectionError = !selectedZone ? "يرجى اختيار منطقة التوصيل" : null;
-  const isFormValid   = !nameError && !phoneError && !locationError && !zoneSelectionError && paymentMethod !== null;
+  const isFormValid   = !nameError && !phoneError && !zoneSelectionError && paymentMethod !== null;
 
   const showNameError          = (nameTouched  || submitAttempted) && !!nameError;
   const showPhoneError         = (phoneTouched || submitAttempted) && !!phoneError;
-  const showLocError           = submitAttempted && !!locationError;
   const showZoneSelectionError = submitAttempted && !!zoneSelectionError;
   const showPaymentError       = submitAttempted && !paymentMethod;
 
@@ -313,11 +256,7 @@ export default function CartPage() {
           status:           "pending",
           payment_method:   paymentMethod ?? "cash",
           ...(user && { user_id: user.id }),
-          delivery_fee:     selectedZone === "K10"
-            ? Math.round((zoneFees["K10"] ?? K10_RATE_PER_KM) * (distanceKm ?? 0) * 100) / 100
-            : (zoneFees[selectedZone ?? ""] ?? 0),
-          ...(distanceKm !== null && { distance_km: Math.round(distanceKm * 100) / 100 }),
-          ...(mapLat != null && mapLng != null && { latitude: mapLat, longitude: mapLng }),
+          delivery_fee:  effectiveDeliveryFee,
           delivery_zone: selectedZone,
         })
         .select()
@@ -371,7 +310,6 @@ export default function CartPage() {
             id:        user.id,
             full_name: form.customer_name.trim(),
             phone:     form.customer_phone.trim(),
-            ...(mapLat != null && mapLng != null && { last_latitude: mapLat, last_longitude: mapLng }),
           }, { onConflict: "id" });
         } catch { /* non-critical */ }
       }
@@ -801,14 +739,6 @@ export default function CartPage() {
                 value={selectedZone ?? ""}
                 onChange={(e) => {
                   setSelectedZone(e.target.value || null);
-                  if (e.target.value !== "K10") {
-                    setLocation(null);
-                    setMapLat(null);
-                    setMapLng(null);
-                    setMapAddress("");
-                    setZoneStatus("idle");
-                    setZoneInfo(null);
-                  }
                 }}
                 style={{
                   ...inputStyle(!!showZoneSelectionError, !!selectedZone),
@@ -937,51 +867,11 @@ export default function CartPage() {
                   <option value="K9">المشيرفة</option>
                   <option value="K9">الجبل الشمالي</option>
                 </optgroup>
-                <optgroup label="──────────────">
-                  <option value="K10">📍 منطقتي غير مذكورة (سعر حسب المسافة)</option>
-                </optgroup>
               </select>
               {showZoneSelectionError && (
                 <p className="text-xs mt-1.5" style={{ color: "#E84040" }}>{zoneSelectionError}</p>
               )}
             </div>
-
-            {selectedZone === "K10" && (
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-bold mb-2" style={{ color: C.muted }}>
-                حدد موقعك على الخريطة
-                <span style={{ color: C.primary }}>*</span>
-                {location && <span style={{ color: "#22C55E" }}>✓</span>}
-              </label>
-              <p className="text-xs mb-2" style={{ color: C.muted }}>
-                {selectedZone === "K10"
-                  ? "ضع الدبوس على موقعك بدقة — السعر يُحسب حسب المسافة"
-                  : "ضع الدبوس على موقعك بدقة عشان يوصلك السائق"}
-              </p>
-              <MapPicker
-                onLocationSelect={(lat, lng, address) => {
-                  setMapLat(lat);
-                  setMapLng(lng);
-                  setMapAddress(address);
-                  setLocation({ lat, lng });
-                }}
-              />
-              {mapAddress && (
-                <div className="rounded-xl px-3 py-2 mt-2" style={{ background: "#F0FDF4", border: "1px solid #86EFAC" }}>
-                  <p className="text-xs font-bold" style={{ color: "#166534" }}>✅ تم تحديد موقعك</p>
-                  <p className="text-xs mt-0.5" style={{ color: "#166534", opacity: 0.8 }}>{mapAddress}</p>
-                </div>
-              )}
-              {selectedZone === "K10" && location && distanceKm !== null && (
-                <p className="text-xs mt-2 font-bold" style={{ color: C.gold }}>
-                  📍 المسافة: {distanceKm.toFixed(1)} كم · رسوم التوصيل التقريبية: {selectedFee.toFixed(2)} د.أ
-                </p>
-              )}
-              {showLocError && (
-                <p className="text-xs mt-1.5" style={{ color: "#E84040" }}>{locationError}</p>
-              )}
-            </div>
-            )}
 
             {/* Notes */}
             <Field label="ملاحظات" required={false} valid={false} error={null}>
@@ -1126,9 +1016,7 @@ export default function CartPage() {
                     className="mr-auto text-xs font-bold px-2.5 py-1 rounded-full"
                     style={{ background: `${C.primary}18`, color: C.primary }}
                   >
-                    {selectedZone === "K10" && distanceKm !== null
-                      ? `${distanceKm.toFixed(1)} كم`
-                      : selectedZone ?? ""}
+                    {selectedZone ?? ""}
                   </span>
                 </div>
 
@@ -1148,11 +1036,7 @@ export default function CartPage() {
                     <div>
                       <span style={{ color: C.muted }}>رسوم التوصيل</span>
                       <p className="text-xs mt-0.5" style={{ color: C.faint }}>
-                        {selectedZone === "K10" && distanceKm !== null
-                          ? `📍 حسب المسافة · ${distanceKm.toFixed(1)} كم`
-                          : selectedZone
-                          ? `📍 ${selectedZone}`
-                          : null}
+                        {selectedZone ? `📍 ${selectedZone}` : null}
                       </p>
                     </div>
                     <span className="font-bold" style={{ color: (freeDelivery || freeDeliveryOffer) ? "#22C55E" : C.gold }}>
@@ -1259,19 +1143,6 @@ export default function CartPage() {
       </div>
     </main>
   );
-}
-
-/* ── Delivery helpers ────────────────────────────────────────────── */
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R    = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a    =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-    Math.cos((lat2 * Math.PI) / 180) *
-    Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 /* ── Field wrapper ───────────────────────────────────────────────── */
