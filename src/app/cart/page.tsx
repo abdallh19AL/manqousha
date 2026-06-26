@@ -264,7 +264,7 @@ export default function CartPage() {
     ? "رقم غير صحيح — مثال: 0791234567" : null;
   const locationError = !location
     ? "يرجى تحديد موقعك على الخريطة" : null;
-  const cityAreaError = cityArea.trim().length < 2 ? "يرامع بلطي يلزم يحلا وا ةنيدملا مسا" : null;
+  const cityAreaError = cityArea.trim().length < 2 ? "يرجى كتابة اسم المدينة أو الحي" : null;
   const isFormValid   = !nameError && !phoneError && !locationError && !cityAreaError && paymentMethod !== null;
 
   const showNameError    = (nameTouched  || submitAttempted) && !!nameError;
@@ -848,7 +848,7 @@ export default function CartPage() {
             </div>
 
             <Field
-              label="يلا وا ةنيدملا مسا"
+              label="اسم المدينة أو الحي"
               required
               valid={!cityAreaError && cityAreaTouched}
               error={showCityAreaError ? cityAreaError : null}
@@ -858,7 +858,8 @@ export default function CartPage() {
                 value={cityArea}
                 onChange={(e) => setCityArea(e.target.value)}
                 onBlur={() => setCityAreaTouched(true)}
-                placeholder="لاثم : حلاوص وا ادلخ وا ةيلامشلا"
+                placeholder="مثال: صويلح أو خلدا أو الشمالية"
+                dir="rtl"
                 style={inputStyle(showCityAreaError, !cityAreaError && cityAreaTouched)}
               />
             </Field>
