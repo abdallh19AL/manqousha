@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Banknote, CreditCard, Globe, Loader2, MapPin, Navigation, ShoppingCart,
+  Banknote, CreditCard, Globe, MapPin, Navigation, ShoppingCart,
   Smartphone, Timer, Truck, Wallet,
 } from "lucide-react";
 import Footer from "@/components/Footer";
@@ -260,8 +260,7 @@ export default function CartPage() {
     ? "الاسم يجب أن يكون 3 أحرف على الأقل" : null;
   const phoneError    = !PHONE_RE.test(form.customer_phone.trim())
     ? "رقم غير صحيح — مثال: 0791234567" : null;
-  const locationError = !location
-    ? "يرجى تحديد موقعك على الخريطة" : null;
+  const locationError = selectedZone === "K10" && !location ? "يرجى تحديد موقعك على الخريطة" : null;
   const zoneSelectionError = !selectedZone ? "يرجى اختيار منطقة التوصيل" : null;
   const isFormValid   = !nameError && !phoneError && !locationError && !zoneSelectionError && paymentMethod !== null;
 
@@ -947,7 +946,7 @@ export default function CartPage() {
               )}
             </div>
 
-            {/* Map picker — always shown, required for K10 */}
+            {selectedZone === "K10" && (
             <div>
               <label className="flex items-center gap-1.5 text-xs font-bold mb-2" style={{ color: C.muted }}>
                 حدد موقعك على الخريطة
@@ -982,6 +981,7 @@ export default function CartPage() {
                 <p className="text-xs mt-1.5" style={{ color: "#E84040" }}>{locationError}</p>
               )}
             </div>
+            )}
 
             {/* Notes */}
             <Field label="ملاحظات" required={false} valid={false} error={null}>
