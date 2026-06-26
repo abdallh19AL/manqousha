@@ -40,12 +40,45 @@ async function ensureConnected(): Promise<void> {
   await connectPromise;
 }
 
+// CP864 Arabic code page mapping (Unicode -> CP864 byte)
+const CP864_MAP: Record<number, number> = {
+  0x0660: 0x30, 0x0661: 0x31, 0x0662: 0x32, 0x0663: 0x33, 0x0664: 0x34,
+  0x0665: 0x35, 0x0666: 0x36, 0x0667: 0x37, 0x0668: 0x38, 0x0669: 0x39,
+  0x066A: 0x25,
+  0x0621: 0x80, 0x0622: 0x81, 0x0623: 0x82, 0x0624: 0x83, 0x0625: 0x84,
+  0x0626: 0x85, 0x0627: 0x86, 0x0628: 0x87, 0x0629: 0x88, 0x062A: 0x89,
+  0x062B: 0x8A, 0x062C: 0x8B, 0x062D: 0x8C, 0x062E: 0x8D, 0x062F: 0x8E,
+  0x0630: 0x8F, 0x0631: 0x90, 0x0632: 0x91, 0x0633: 0x92, 0x0634: 0x93,
+  0x0635: 0x94, 0x0636: 0x95, 0x0637: 0x96, 0x0638: 0x97, 0x0639: 0x98,
+  0x063A: 0x99, 0x0640: 0x9A, 0x0641: 0x9B, 0x0642: 0x9C, 0x0643: 0x9D,
+  0x0644: 0x9E, 0x0645: 0x9F, 0x0646: 0xA0, 0x0647: 0xA1, 0x0648: 0xA2,
+  0x0649: 0xA3, 0x064A: 0xA4,
+  0x064B: 0xA5, 0x064C: 0xA6, 0x064D: 0xA7, 0x064E: 0xA8, 0x064F: 0xA9,
+  0x0650: 0xAA, 0x0651: 0xAB, 0x0652: 0xAC,
+};
+
+function toCP864Bytes(text: string): number[] {
+  const out: number[] = [];
+  for (const ch of text) {
+    const code = ch.codePointAt(0)!;
+    if (code < 0x80) {
+      out.push(code);
+    } else if (CP864_MAP[code] !== undefined) {
+      out.push(CP864_MAP[code]);
+    } else {
+      out.push(0x20); // space for unmapped chars
+    }
+  }
+  return out;
+}
+
 function line(char = "-", len = 32): string {
   return char.repeat(len) + LF;
 }
 
 function buildReceipt(order: OrderWithItems): string {
   let r = INIT;
+  r += ESC + "t" + "\x25"; // Select CP864 Arabic code page (page 37)
 
   // Header
   r += ALIGN_CENTER + BOLD_ON + DOUBLE_ON;
@@ -120,10 +153,8 @@ export async function printReceipt(order: OrderWithItems): Promise<void> {
   const cfg = qz.configs.create(printerName);
   const data = buildReceipt(order);
 
-  // Convert string to hex for raw ESC/POS transmission
-  const encoder = new TextEncoder();
-  const bytes = encoder.encode(data);
-  const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+  const bytes = toCP864Bytes(data);
+  const hex = bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
 
   await qz.print(cfg, [{ type: "raw", format: "hex", data: hex }]);
 }
