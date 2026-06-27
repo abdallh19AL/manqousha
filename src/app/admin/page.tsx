@@ -442,12 +442,18 @@ function OrdersPanel({
   const [todayOnly,      setTodayOnly]      = useState(true);
   const [expandedId,     setExpandedId]     = useState<string | null>(null);
   const [audioUnlocked,  setAudioUnlocked]  = useState(false);
+  const [soundEnabled,   setSoundEnabled]   = useState(true);
   const [cleanupRunning, setCleanupRunning] = useState(false);
   const [cleanupMsg,     setCleanupMsg]     = useState<string | null>(null);
   const [orderOffersMap, setOrderOffersMap] = useState<Record<string, string[]>>({});
 
   const knownIds    = useRef<Set<string>>(new Set());
   const loopRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const match = document.cookie.match(/(?:^|;\s*)naseej_sound=([^;]+)/);
+    if (match) setSoundEnabled(match[1] === "1");
+  }, []);
 
   const loadOrderOffers = async (order: OrderWithItems) => {
     const productIds = order.order_items.map((i) => i.product_id).filter(Boolean);
@@ -508,16 +514,32 @@ function OrdersPanel({
   }, [orders]);
 
   // ── Audio ──────────────────────────────────────────────────────
-  const unlockAudio = useCallback(() => {
-    try {
-      if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
-      audioCtxRef.current.resume().then(() => {
-        setAudioUnlocked(true);
-      }).catch((e) => console.error("[Audio] resume() failed:", e));
-    } catch (e) {
-      console.error("[Audio] Failed to create AudioContext:", e);
-    }
+  const toggleSound = useCallback(() => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      document.cookie = `naseej_sound=${next ? "1" : "0"};path=/;max-age=31536000`;
+      if (!next) {
+        if (loopRef.current !== null) { clearInterval(loopRef.current); loopRef.current = null; }
+      }
+      return next;
+    });
   }, []);
+
+  useEffect(() => {
+    if (audioUnlocked || !soundEnabled) return;
+    const unlock = () => {
+      try {
+        if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+        audioCtxRef.current.resume().then(() => setAudioUnlocked(true)).catch(() => {});
+      } catch {}
+    };
+    window.addEventListener("click", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      window.removeEventListener("click", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, [audioUnlocked, soundEnabled]);
 
   const playOrderAlarm = useCallback(() => {
     const ctx = audioCtxRef.current;
@@ -565,9 +587,9 @@ function OrdersPanel({
   }, []);
 
   useEffect(() => {
-    if (newIds.size > 0) startLoop();
+    if (newIds.size > 0 && soundEnabled) startLoop();
     else stopLoop();
-  }, [newIds.size, startLoop, stopLoop]);
+  }, [newIds.size, soundEnabled, startLoop, stopLoop]);
 
   useEffect(() => () => stopLoop(), [stopLoop]);
   useEffect(() => { onPendingAckChange(newIds.size); }, [newIds.size, onPendingAckChange]);
@@ -753,27 +775,27 @@ function OrdersPanel({
     <div>
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
-        {!audioUnlocked ? (
-          <button
-            onClick={unlockAudio}
-            className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl transition-colors animate-pulse"
-            style={{ background: "#FFFBEB", border: `1px solid ${C.gold}66`, color: C.gold }}
-          >
-            <Bell className="w-3.5 h-3.5" /> تفعيل الصوت — اضغط أولاً
-          </button>
-        ) : (
-          <button
-            onClick={playOrderAlarm}
-            className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl transition-colors"
-            style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = C.gold; e.currentTarget.style.borderColor = `${C.gold}44`; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border; }}
-          >
-            <Bell className="w-3.5 h-3.5" /> اختبار التنبيه
-          </button>
-        )}
+        <button
+          onClick={toggleSound}
+          className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl transition-colors"
+          style={
+            soundEnabled
+              ? { background: "#DCFCE7", border: "1px solid #22C55E", color: "#166534" }
+              : { background: C.surface, border: `1px solid ${C.border}`, color: C.faint }
+          }
+        >
+          <Bell className="w-3.5 h-3.5" />
+          {soundEnabled ? "الصوت مفعّل ✓" : "الصوت متوقف"}
+        </button>
+        <button
+          onClick={() => { if (!audioCtxRef.current) { audioCtxRef.current = new AudioContext(); } audioCtxRef.current.resume().then(() => { setAudioUnlocked(true); playOrderAlarm(); }); }}
+          className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl transition-colors"
+          style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
+        >
+          <Bell className="w-3.5 h-3.5" /> اختبار الصوت
+        </button>
         <span className="text-xs" style={{ color: C.faint }}>
-          {!audioUnlocked ? "يلزم الضغط مرة واحدة لتفعيل الصوت" : "الصوت مفعّل ✓"}
+          {soundEnabled && !audioUnlocked ? "اضغط أي مكان لتفعيل الصوت" : soundEnabled ? "يعمل تلقائياً عند وصول الطلبات" : ""}
         </span>
         <span className="hidden sm:inline select-none" style={{ color: C.border }}>|</span>
         <button
