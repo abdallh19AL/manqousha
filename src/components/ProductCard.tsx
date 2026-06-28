@@ -171,7 +171,13 @@ export default function ProductCard({ product, offer }: { product: Product; offe
             <img
               src={product.image_url}
               alt={product.name}
+              loading="lazy"
+              decoding="async"
+              width={300}
+              height={152}
               className="absolute inset-0 w-full h-full object-cover"
+              style={{ opacity: 0, transition: "opacity 0.3s ease" }}
+              onLoad={(e) => { e.currentTarget.style.opacity = "1"; }}
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
