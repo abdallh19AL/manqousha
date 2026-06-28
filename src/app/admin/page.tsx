@@ -526,31 +526,36 @@ function OrdersPanel({
   }, []);
 
   useEffect(() => {
-    if (audioUnlocked || !soundEnabled) return;
+    if (!soundEnabled) return;
     const unlock = () => {
       try {
         if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
-        audioCtxRef.current.resume().then(() => setAudioUnlocked(true)).catch(() => {});
+        if (audioCtxRef.current.state === "suspended") {
+          audioCtxRef.current.resume().then(() => setAudioUnlocked(true)).catch(() => {});
+        } else {
+          setAudioUnlocked(true);
+        }
       } catch {}
     };
-    window.addEventListener("click", unlock, { once: true });
-    window.addEventListener("keydown", unlock, { once: true });
+    unlock();
+    window.addEventListener("click",       unlock);
+    window.addEventListener("keydown",     unlock);
+    window.addEventListener("pointerdown", unlock);
     return () => {
-      window.removeEventListener("click", unlock);
-      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("click",       unlock);
+      window.removeEventListener("keydown",     unlock);
+      window.removeEventListener("pointerdown", unlock);
     };
-  }, [audioUnlocked, soundEnabled]);
+  }, [soundEnabled]);
 
-  const playOrderAlarm = useCallback(() => {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    if (ctx.state === "suspended") {
-      console.warn("[Audio] Context suspended — needs user gesture to resume.");
-      ctx.resume().catch((e) => console.error("[Audio] Resume failed:", e));
-      return;
-    }
+  const playOrderAlarm = useCallback(async () => {
     try {
-      // 3 loud beeps: 880 Hz square wave, 200ms on / 100ms gap
+      if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+      const ctx = audioCtxRef.current;
+      if (ctx.state === "suspended") {
+        await ctx.resume();
+      }
+      if (ctx.state !== "running") return;
       const BEEP_FREQ = 880;
       const BEEP_MS   = 0.20;
       const GAP_MS    = 0.10;
@@ -575,8 +580,8 @@ function OrdersPanel({
 
   const startLoop = useCallback(() => {
     if (loopRef.current !== null) return;
-    playOrderAlarm();
-    loopRef.current = setInterval(playOrderAlarm, 2500);
+    void playOrderAlarm();
+    loopRef.current = setInterval(() => { void playOrderAlarm(); }, 2500);
   }, [playOrderAlarm]);
 
   const stopLoop = useCallback(() => {
