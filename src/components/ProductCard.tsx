@@ -292,35 +292,15 @@ function ProductCardComponent({ product, offer }: { product: Product; offer?: Pr
           </div>
         </div>
 
-        {/* Full-card decorative border frame — single SVG overlay */}
-        <svg
+        <div
           aria-hidden="true"
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          viewBox="0 0 200 300"
-          preserveAspectRatio="none"
-          fill="none"
-        >
-          {/* Top border */}
-          <line x1="24" y1="2" x2="176" y2="2" stroke="#D96B27" strokeWidth="1.5"/>
-          {/* Bottom border */}
-          <line x1="24" y1="298" x2="176" y2="298" stroke="#D96B27" strokeWidth="1.5"/>
-          {/* Top-right corner: rounded turn + outward curl */}
-          <path d="M 176 2 C 193 2 198 7 198 22" stroke="#D96B27" strokeWidth="1.5" strokeLinecap="round"/>
-          <path d="M 198 22 C 199 31 195 36 188 37" stroke="#D96B27" strokeWidth="1" strokeLinecap="round"/>
-          <path d="M 188 37 Q 182 34 180 40" stroke="#D96B27" strokeWidth="0.75" strokeLinecap="round"/>
-          {/* Top-left corner */}
-          <path d="M 24 2 C 7 2 2 7 2 22" stroke="#D96B27" strokeWidth="1.5" strokeLinecap="round"/>
-          <path d="M 2 22 C 1 31 5 36 12 37" stroke="#D96B27" strokeWidth="1" strokeLinecap="round"/>
-          <path d="M 12 37 Q 18 34 20 40" stroke="#D96B27" strokeWidth="0.75" strokeLinecap="round"/>
-          {/* Bottom-right corner */}
-          <path d="M 176 298 C 193 298 198 293 198 278" stroke="#D96B27" strokeWidth="1.5" strokeLinecap="round"/>
-          <path d="M 198 278 C 199 269 195 264 188 263" stroke="#D96B27" strokeWidth="1" strokeLinecap="round"/>
-          <path d="M 188 263 Q 182 266 180 260" stroke="#D96B27" strokeWidth="0.75" strokeLinecap="round"/>
-          {/* Bottom-left corner */}
-          <path d="M 24 298 C 7 298 2 293 2 278" stroke="#D96B27" strokeWidth="1.5" strokeLinecap="round"/>
-          <path d="M 2 278 C 1 269 5 264 12 263" stroke="#D96B27" strokeWidth="1" strokeLinecap="round"/>
-          <path d="M 12 263 Q 18 266 20 260" stroke="#D96B27" strokeWidth="0.75" strokeLinecap="round"/>
-        </svg>
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            border: "1px solid rgba(200,146,42,0.15)",
+            borderRadius: "inherit",
+            margin: "6px",
+          }}
+        />
       </div>
 
       {showModal && (
