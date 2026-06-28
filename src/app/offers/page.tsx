@@ -146,21 +146,6 @@ export default function OffersPage() {
               </div>
             ))}
           </div>
-        ) : offers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-            <span className="text-6xl select-none">🎁</span>
-            <div>
-              <p className="font-black text-lg" style={{ color: C.text }}>لا توجد عروض حالياً</p>
-              <p className="text-sm mt-1" style={{ color: C.faint }}>تابعنا لتعرف بأحدث العروض</p>
-            </div>
-            <Link
-              href="/"
-              className="px-6 py-2.5 rounded-xl text-sm font-black"
-              style={{ background: C.primary, color: "#fff", boxShadow: `0 4px 16px ${C.primary}55` }}
-            >
-              تصفح القائمة
-            </Link>
-          </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
             {/* Static streak loyalty offer card */}
@@ -237,7 +222,7 @@ export default function OffersPage() {
               </div>
             </div>
 
-            {offers.map((offer) => {
+            {offers.length > 0 ? offers.map((offer) => {
               const prod = offer.products;
               if (!prod) return null;
               const badge    = badgeStyle(offer.offer_type);
@@ -328,7 +313,11 @@ export default function OffersPage() {
                   </div>
                 </Link>
               );
-            })}
+            }) : (
+              <div className="col-span-full text-center py-8">
+                <p className="text-sm font-bold" style={{ color: C.faint }}>لا توجد عروض إضافية حالياً</p>
+              </div>
+            )}
           </div>
         )}
       </div>
