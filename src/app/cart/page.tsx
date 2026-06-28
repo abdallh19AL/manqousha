@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Banknote, CreditCard, Globe, MapPin, Navigation,
-  Smartphone, Timer, Truck, Wallet,
+  ShoppingCart, Smartphone, Timer, Truck, Wallet,
 } from "lucide-react";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
@@ -64,6 +64,7 @@ export default function CartPage() {
   const [success,         setSuccess]         = useState(false);
   const [submitError,     setSubmitError]     = useState("");
   const [selectedArea,    setSelectedArea]    = useState<string | null>(null);
+  const [orderType,       setOrderType]       = useState<"delivery" | "pickup">("delivery");
   const selectedZone = selectedArea ? (AREA_TO_ZONE[selectedArea] ?? null) : null;
   const [nameTouched,     setNameTouched]     = useState(false);
   const [phoneTouched,    setPhoneTouched]    = useState(false);
@@ -112,6 +113,7 @@ export default function CartPage() {
           setPaymentMethod(p.paymentMethod as PaymentMethod);
         }
         if (typeof p.selectedArea === "string") setSelectedArea(p.selectedArea);
+        if (p.orderType === "delivery" || p.orderType === "pickup") setOrderType(p.orderType);
       }
     } catch { /* ignore corrupted data */ }
     setIsRestored(true);
@@ -199,6 +201,7 @@ export default function CartPage() {
           notes:          form.notes,
           paymentMethod,
           selectedArea,
+          orderType,
         }));
       } catch { /* storage quota exceeded */ }
     }, 400);
@@ -210,7 +213,7 @@ export default function CartPage() {
   // ── Delivery calculation ──────────────────────────────────────
   const subtotal    = getTotal();
   const selectedFee = selectedZone ? (zoneFees[selectedZone] ?? 0) : 0;
-  const effectiveDeliveryFee = (freeDelivery || freeDeliveryOffer) ? 0 : selectedFee;
+  const effectiveDeliveryFee = orderType === "pickup" ? 0 : (freeDelivery || freeDeliveryOffer) ? 0 : selectedFee;
   const grandTotal = subtotal + effectiveDeliveryFee;
 
   // ── Validation ────────────────────────────────────────────────
@@ -218,7 +221,7 @@ export default function CartPage() {
     ? "الاسم يجب أن يكون 3 أحرف على الأقل" : null;
   const phoneError    = !PHONE_RE.test(form.customer_phone.trim())
     ? "رقم غير صحيح — مثال: 0791234567" : null;
-  const zoneSelectionError = !selectedZone ? "يرجى اختيار منطقة التوصيل" : null;
+  const zoneSelectionError = orderType === "delivery" && !selectedZone ? "يرجى اختيار منطقة التوصيل" : null;
   const isFormValid   = !nameError && !phoneError && !zoneSelectionError && paymentMethod !== null;
 
   const showNameError          = (nameTouched  || submitAttempted) && !!nameError;
@@ -261,7 +264,7 @@ export default function CartPage() {
           ...(preOrderId && { id: preOrderId }),
           customer_name:    form.customer_name.trim(),
           customer_phone:   form.customer_phone.trim(),
-          customer_address: selectedArea ?? "",
+          customer_address: orderType === "pickup" ? "استلام من المطعم" : (selectedArea ?? ""),
           notes:            freeDelivery
             ? `${form.notes.trim() ? form.notes.trim() + " | " : ""}🎁 توصيل مجاني - عرض الولاء (الطلب الخامس)`
             : form.notes.trim() || null,
@@ -270,7 +273,7 @@ export default function CartPage() {
           payment_method:   paymentMethod ?? "cash",
           ...(user && { user_id: user.id }),
           delivery_fee:  effectiveDeliveryFee,
-          delivery_zone: selectedZone,
+          delivery_zone: orderType === "pickup" ? "PICKUP" : selectedZone,
         })
         .select()
         .single();
@@ -741,7 +744,44 @@ export default function CartPage() {
               />
             </Field>
 
-            {/* Zone selector */}
+            {/* Order type selector */}
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-bold mb-2" style={{ color: C.muted }}>
+                نوع الطلب
+                <span style={{ color: C.primary }}>*</span>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setOrderType("delivery")}
+                  className="flex flex-col items-center gap-2 p-4 rounded-2xl transition-all text-center"
+                  style={
+                    orderType === "delivery"
+                      ? { background: `linear-gradient(135deg, ${C.primary}0D, ${C.gold}08)`, border: `2px solid ${C.primary}`, boxShadow: `0 6px 20px ${C.primary}18` }
+                      : { background: C.bg, border: `1px solid ${C.border}` }
+                  }
+                >
+                  <Truck className="w-7 h-7" style={{ color: orderType === "delivery" ? C.primary : C.faint }} />
+                  <span className="font-bold text-sm" style={{ color: orderType === "delivery" ? C.primary : C.text }}>توصيل</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrderType("pickup")}
+                  className="flex flex-col items-center gap-2 p-4 rounded-2xl transition-all text-center"
+                  style={
+                    orderType === "pickup"
+                      ? { background: `linear-gradient(135deg, ${C.primary}0D, ${C.gold}08)`, border: `2px solid ${C.primary}`, boxShadow: `0 6px 20px ${C.primary}18` }
+                      : { background: C.bg, border: `1px solid ${C.border}` }
+                  }
+                >
+                  <ShoppingCart className="w-7 h-7" style={{ color: orderType === "pickup" ? C.primary : C.faint }} />
+                  <span className="font-bold text-sm" style={{ color: orderType === "pickup" ? C.primary : C.text }}>استلام من المطعم</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Zone selector — only for delivery */}
+            {orderType === "delivery" && (
             <div>
               <label className="flex items-center gap-1.5 text-xs font-bold mb-2" style={{ color: C.muted }}>
                 اختر منطقة التوصيل
@@ -885,6 +925,7 @@ export default function CartPage() {
                 <p className="text-xs mt-1.5" style={{ color: "#E84040" }}>{zoneSelectionError}</p>
               )}
             </div>
+            )}
 
             {/* Notes */}
             <Field label="ملاحظات" required={false} valid={false} error={null}>
@@ -1008,7 +1049,7 @@ export default function CartPage() {
             </div>
 
             {/* ══ Delivery summary (shown after map pin confirmed) ══ */}
-            {selectedZone !== null && (
+            {(selectedZone !== null || orderType === "pickup") && (
               <div
                 className="rounded-2xl overflow-hidden"
                 style={{ border: `1px solid ${C.primary}28` }}
@@ -1029,7 +1070,7 @@ export default function CartPage() {
                     className="mr-auto text-xs font-bold px-2.5 py-1 rounded-full"
                     style={{ background: `${C.primary}18`, color: C.primary }}
                   >
-                    {selectedZone ?? ""}
+                    {orderType === "pickup" ? "استلام" : (selectedZone ?? "")}
                   </span>
                 </div>
 
@@ -1049,7 +1090,7 @@ export default function CartPage() {
                     <div>
                       <span style={{ color: C.muted }}>رسوم التوصيل</span>
                       <p className="text-xs mt-0.5" style={{ color: C.faint }}>
-                        {selectedZone ? `📍 ${selectedZone}` : null}
+                        {orderType === "pickup" ? "📍 استلام من المطعم" : selectedZone ? `📍 ${selectedZone}` : null}
                       </p>
                     </div>
                     <span className="font-bold" style={{ color: (freeDelivery || freeDeliveryOffer) ? "#22C55E" : C.gold }}>
