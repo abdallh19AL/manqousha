@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import {
   Utensils, Sandwich, Pizza, Cookie, Flame, UtensilsCrossed,
   Star, Croissant, Plus, IceCream, CupSoda,
@@ -46,7 +46,7 @@ function WatermarkIcon({ cat }: { cat: string }) {
   }
 }
 
-export default function ProductCard({ product, offer }: { product: Product; offer?: ProductOffer }) {
+function ProductCardComponent({ product, offer }: { product: Product; offer?: ProductOffer }) {
   const addItem  = useCartStore((s) => s.addItem);
   const [showModal, setShowModal] = useState(false);
   const [added,     setAdded]     = useState(false);
@@ -333,3 +333,5 @@ export default function ProductCard({ product, offer }: { product: Product; offe
     </>
   );
 }
+
+export default memo(ProductCardComponent);
