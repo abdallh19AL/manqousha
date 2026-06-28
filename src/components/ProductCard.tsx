@@ -28,6 +28,17 @@ const CATEGORY_CONFIG: Record<
 };
 const DEFAULT_CFG = { emoji: "🍽️", from: "#FAF5EE", to: "#F3EBE0", accent: "#A08060" };
 
+function optimizeImageUrl(url: string | null | undefined, width = 400): string {
+  if (!url) return "";
+  if (!url.includes("/storage/v1/object/public/")) return url;
+  const transformed = url.replace(
+    "/storage/v1/object/public/",
+    "/storage/v1/render/image/public/"
+  );
+  const separator = transformed.includes("?") ? "&" : "?";
+  return `${transformed}${separator}width=${width}&quality=70&resize=contain`;
+}
+
 function WatermarkIcon({ cat }: { cat: string }) {
   const cls = "w-24 h-24";
   switch (cat) {
@@ -169,7 +180,7 @@ export default function ProductCard({ product, offer }: { product: Product; offe
           {/* Main content: image or emoji */}
           {product.image_url ? (
             <img
-              src={product.image_url}
+              src={optimizeImageUrl(product.image_url, 400)}
               alt={product.name}
               loading="lazy"
               decoding="async"
