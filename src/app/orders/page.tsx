@@ -48,7 +48,8 @@ function OrdersPageContent() {
   const [redeemables,   setRedeemables]   = useState<RedeemableProduct[]>([]);
   const [pointsLoading, setPointsLoading] = useState(false);
   const [pointsLoaded,  setPointsLoaded]  = useState(false);
-  const [customerCode,  setCustomerCode]  = useState<string | null>(null);
+  const [customerCode,       setCustomerCode]       = useState<string | null>(null);
+  const [customerCodeLoaded, setCustomerCodeLoaded] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -65,6 +66,7 @@ function OrdersPageContent() {
       .single()
       .then(({ data }) => {
         setCustomerCode((data as { customer_code: string } | null)?.customer_code ?? null);
+        setCustomerCodeLoaded(true);
       });
   }, [user]);
 
@@ -394,7 +396,7 @@ function OrdersPageContent() {
                     className="font-mono font-black flex-1 truncate"
                     style={{ color: C.primary, fontSize: "28px", textAlign: "center" }}
                   >
-                    {customerCode ?? "جاري التحميل..."}
+                    {!customerCodeLoaded ? "جاري التحميل..." : (customerCode ?? "غير متوفر")}
                   </p>
                   <button
                     onClick={() => {
