@@ -273,10 +273,24 @@ function ComboCard({
     >
       {/* Image / placeholder */}
       <div
-        className="h-36 flex items-center justify-center text-5xl select-none"
+        className="h-36 relative overflow-hidden flex items-center justify-center text-5xl select-none"
         style={{ background: `linear-gradient(135deg, #FFF4EF, #FFF8F2)` }}
       >
-        🍕
+        {combo.image_url ? (
+          <img
+            src={combo.image_url}
+            alt={combo.name}
+            loading="lazy"
+            decoding="async"
+            width={400}
+            height={144}
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ opacity: 0, transition: "opacity 0.3s ease" }}
+            onLoad={(e) => { e.currentTarget.style.opacity = "1"; }}
+          />
+        ) : (
+          "🍕"
+        )}
       </div>
 
       <div className="p-4 flex flex-col flex-1 gap-3">
