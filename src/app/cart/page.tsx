@@ -18,6 +18,18 @@ import { useStoreSettings } from "@/lib/store-settings";
 const UUID_RE  = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PHONE_RE = /^(07\d{8}|\+9627\d{8})$/;
 
+const AREA_TO_ZONE: Record<string, string> = {
+  "تلاع العلي": "K1", "شارع الجاردنز": "K1", "أم السماق": "K1", "شارع المدينة": "K1", "البركة": "K1",
+  "الرابية": "K2", "خلدا": "K2", "الروابي": "K2", "ضاحية الرشيد": "K2", "ضاحية الروضة": "K2", "الجندويل": "K2", "المدينة الطبية": "K2", "ضاحية الأمير راشد": "K2", "أم أذينة": "K2", "طلوع نيفين": "K2", "مجمع الأعمال": "K2", "مكة مول": "K2", "سيتي مول": "K2",
+  "الشميساني": "K3", "السادس": "K3", "الرابع": "K3", "صويلح": "K3", "دابوق": "K3", "الجبيهة": "K3", "السابع": "K3", "المدينة الرياضية": "K3", "عرجان": "K3", "الكرسي": "K3", "السهل": "K3", "الصويفية": "K3",
+  "العبدلي": "K4", "عبدون": "K4", "دير غبار": "K4", "البياضة": "K4", "الرونق": "K4", "الحسين": "K4", "مستشفى إسلامي": "K4", "الكمالية": "K4", "زويتينة": "K4", "أم الأسود": "K4", "جبل عمان": "K4", "دوار الداخلية": "K4", "وادي صقور": "K4",
+  "النزهة": "K5", "ضاحية الاستقلال": "K5", "ضاحية الأقصى": "K5", "اللويبدة": "K5", "مستشفى الاستقلال": "K5", "ضاحية الأمير حسن": "K5", "عين الباشا": "K5", "أبو سوس": "K5", "شارع الرينبو": "K5", "رأس العين": "K5", "طبربور": "K5", "صافوط": "K5", "وادي السير": "K5", "فحيص": "K5", "ماحص": "K5", "أم السوس": "K5",
+  "الياسمين": "K6", "أبو نصير": "K6", "شفا بدران": "K6", "مرج الحمام": "K6", "أبو علياء": "K6", "إسكان التلفزيون": "K6", "الرحبة الشمالية": "K6", "الرحبة الجنوبية": "K6", "بدر الجديدة": "K6", "وسط البلد": "K6", "الأشرفية": "K6", "حي الصحابة": "K6", "رغدان": "K6", "الهاشمي": "K6", "البقعة": "K6",
+  "ناعور": "K7", "الوحدات": "K7", "المقابلين": "K7", "حي النزال": "K7", "الجبل الأخضر": "K7", "جبل النصر": "K7", "عدن": "K7", "عراق الأمير": "K7", "المباني": "K7", "جبل الزهور": "K7", "ضاحية الحاج حسن": "K7", "شارع الحرية": "K7", "المنارة": "K7", "أم النوارة": "K7",
+  "الجويدة": "K8", "جاوا": "K8", "علندا": "K8", "صالحية العابد": "K8", "اليادودة": "K8", "القويسمة": "K8", "ماركا الشمالية": "K8", "ماركا الجنوبية": "K8", "خريبة السوق": "K8",
+  "الرصيفة": "K9", "سحاب": "K9", "المشيرفة": "K9", "الجبل الشمالي": "K9",
+};
+
 
 type PaymentMethod = "cash" | "electronic";
 type ElectronicSub = "apple" | "google" | "card";
@@ -51,7 +63,8 @@ export default function CartPage() {
   const [loading,         setLoading]         = useState(false);
   const [success,         setSuccess]         = useState(false);
   const [submitError,     setSubmitError]     = useState("");
-  const [selectedZone,    setSelectedZone]    = useState<string | null>(null);
+  const [selectedArea,    setSelectedArea]    = useState<string | null>(null);
+  const selectedZone = selectedArea ? (AREA_TO_ZONE[selectedArea] ?? null) : null;
   const [nameTouched,     setNameTouched]     = useState(false);
   const [phoneTouched,    setPhoneTouched]    = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -98,7 +111,7 @@ export default function CartPage() {
         if (p.paymentMethod === "cash" || p.paymentMethod === "electronic") {
           setPaymentMethod(p.paymentMethod as PaymentMethod);
         }
-        if (typeof p.selectedZone === "string") setSelectedZone(p.selectedZone);
+        if (typeof p.selectedArea === "string") setSelectedArea(p.selectedArea);
       }
     } catch { /* ignore corrupted data */ }
     setIsRestored(true);
@@ -185,14 +198,14 @@ export default function CartPage() {
           customer_phone: form.customer_phone,
           notes:          form.notes,
           paymentMethod,
-          selectedZone,
+          selectedArea,
         }));
       } catch { /* storage quota exceeded */ }
     }, 400);
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [form, paymentMethod, selectedZone, isRestored]);
+  }, [form, paymentMethod, selectedArea, isRestored]);
 
   // ── Delivery calculation ──────────────────────────────────────
   const subtotal    = getTotal();
@@ -248,7 +261,7 @@ export default function CartPage() {
           ...(preOrderId && { id: preOrderId }),
           customer_name:    form.customer_name.trim(),
           customer_phone:   form.customer_phone.trim(),
-          customer_address: selectedZone ?? "",
+          customer_address: selectedArea ?? "",
           notes:            freeDelivery
             ? `${form.notes.trim() ? form.notes.trim() + " | " : ""}🎁 توصيل مجاني - عرض الولاء (الطلب الخامس)`
             : form.notes.trim() || null,
@@ -736,9 +749,9 @@ export default function CartPage() {
                 {selectedZone && <span style={{ color: "#22C55E" }}>✓</span>}
               </label>
               <select
-                value={selectedZone ?? ""}
+                value={selectedArea ?? ""}
                 onChange={(e) => {
-                  setSelectedZone(e.target.value || null);
+                  setSelectedArea(e.target.value || null);
                 }}
                 style={{
                   ...inputStyle(!!showZoneSelectionError, !!selectedZone),
@@ -749,123 +762,123 @@ export default function CartPage() {
               >
                 <option value="">-- اختر حيك أو منطقتك --</option>
                 <optgroup label="── 2.00 د.أ ──">
-                  <option value="K1">تلاع العلي</option>
-                  <option value="K1">شارع الجاردنز</option>
-                  <option value="K1">أم السماق</option>
-                  <option value="K1">شارع المدينة</option>
-                  <option value="K1">البركة</option>
+                  <option value="تلاع العلي">تلاع العلي</option>
+                  <option value="شارع الجاردنز">شارع الجاردنز</option>
+                  <option value="أم السماق">أم السماق</option>
+                  <option value="شارع المدينة">شارع المدينة</option>
+                  <option value="البركة">البركة</option>
                 </optgroup>
                 <optgroup label="── 2.50 د.أ ──">
-                  <option value="K2">الرابية</option>
-                  <option value="K2">خلدا</option>
-                  <option value="K2">الروابي</option>
-                  <option value="K2">ضاحية الرشيد</option>
-                  <option value="K2">ضاحية الروضة</option>
-                  <option value="K2">الجندويل</option>
-                  <option value="K2">المدينة الطبية</option>
-                  <option value="K2">ضاحية الأمير راشد</option>
-                  <option value="K2">أم أذينة</option>
-                  <option value="K2">طلوع نيفين</option>
-                  <option value="K2">مجمع الأعمال</option>
-                  <option value="K2">مكة مول</option>
-                  <option value="K2">سيتي مول</option>
+                  <option value="الرابية">الرابية</option>
+                  <option value="خلدا">خلدا</option>
+                  <option value="الروابي">الروابي</option>
+                  <option value="ضاحية الرشيد">ضاحية الرشيد</option>
+                  <option value="ضاحية الروضة">ضاحية الروضة</option>
+                  <option value="الجندويل">الجندويل</option>
+                  <option value="المدينة الطبية">المدينة الطبية</option>
+                  <option value="ضاحية الأمير راشد">ضاحية الأمير راشد</option>
+                  <option value="أم أذينة">أم أذينة</option>
+                  <option value="طلوع نيفين">طلوع نيفين</option>
+                  <option value="مجمع الأعمال">مجمع الأعمال</option>
+                  <option value="مكة مول">مكة مول</option>
+                  <option value="سيتي مول">سيتي مول</option>
                 </optgroup>
                 <optgroup label="── 3.00 د.أ ──">
-                  <option value="K3">صويلح</option>
-                  <option value="K3">الشميساني</option>
-                  <option value="K3">دابوق</option>
-                  <option value="K3">الجبيهة</option>
-                  <option value="K3">الصويفية</option>
-                  <option value="K3">الرابع</option>
-                  <option value="K3">السادس</option>
-                  <option value="K3">السابع</option>
-                  <option value="K3">المدينة الرياضية</option>
-                  <option value="K3">عرجان</option>
-                  <option value="K3">الكرسي</option>
-                  <option value="K3">السهل</option>
+                  <option value="صويلح">صويلح</option>
+                  <option value="الشميساني">الشميساني</option>
+                  <option value="دابوق">دابوق</option>
+                  <option value="الجبيهة">الجبيهة</option>
+                  <option value="الصويفية">الصويفية</option>
+                  <option value="الرابع">الرابع</option>
+                  <option value="السادس">السادس</option>
+                  <option value="السابع">السابع</option>
+                  <option value="المدينة الرياضية">المدينة الرياضية</option>
+                  <option value="عرجان">عرجان</option>
+                  <option value="الكرسي">الكرسي</option>
+                  <option value="السهل">السهل</option>
                 </optgroup>
                 <optgroup label="── 3.50 د.أ ──">
-                  <option value="K4">العبدلي</option>
-                  <option value="K4">عبدون</option>
-                  <option value="K4">دير غبار</option>
-                  <option value="K4">البياضة</option>
-                  <option value="K4">الرونق</option>
-                  <option value="K4">الحسين</option>
-                  <option value="K4">مستشفى إسلامي</option>
-                  <option value="K4">الكمالية</option>
-                  <option value="K4">زويتينة</option>
-                  <option value="K4">أم الأسود</option>
-                  <option value="K4">جبل عمان</option>
-                  <option value="K4">دوار الداخلية</option>
-                  <option value="K4">وادي صقور</option>
+                  <option value="العبدلي">العبدلي</option>
+                  <option value="عبدون">عبدون</option>
+                  <option value="دير غبار">دير غبار</option>
+                  <option value="البياضة">البياضة</option>
+                  <option value="الرونق">الرونق</option>
+                  <option value="الحسين">الحسين</option>
+                  <option value="مستشفى إسلامي">مستشفى إسلامي</option>
+                  <option value="الكمالية">الكمالية</option>
+                  <option value="زويتينة">زويتينة</option>
+                  <option value="أم الأسود">أم الأسود</option>
+                  <option value="جبل عمان">جبل عمان</option>
+                  <option value="دوار الداخلية">دوار الداخلية</option>
+                  <option value="وادي صقور">وادي صقور</option>
                 </optgroup>
                 <optgroup label="── 4.00 د.أ ──">
-                  <option value="K5">النزهة</option>
-                  <option value="K5">ضاحية الاستقلال</option>
-                  <option value="K5">ضاحية الأقصى</option>
-                  <option value="K5">اللويبدة</option>
-                  <option value="K5">مستشفى الاستقلال</option>
-                  <option value="K5">ضاحية الأمير حسن</option>
-                  <option value="K5">عين الباشا</option>
-                  <option value="K5">أبو سوس</option>
-                  <option value="K5">شارع الرينبو</option>
-                  <option value="K5">رأس العين</option>
-                  <option value="K5">طبربور</option>
-                  <option value="K5">صافوط</option>
-                  <option value="K5">وادي السير</option>
-                  <option value="K5">فحيص</option>
-                  <option value="K5">ماحص</option>
-                  <option value="K5">أم السوس</option>
+                  <option value="النزهة">النزهة</option>
+                  <option value="ضاحية الاستقلال">ضاحية الاستقلال</option>
+                  <option value="ضاحية الأقصى">ضاحية الأقصى</option>
+                  <option value="اللويبدة">اللويبدة</option>
+                  <option value="مستشفى الاستقلال">مستشفى الاستقلال</option>
+                  <option value="ضاحية الأمير حسن">ضاحية الأمير حسن</option>
+                  <option value="عين الباشا">عين الباشا</option>
+                  <option value="أبو سوس">أبو سوس</option>
+                  <option value="شارع الرينبو">شارع الرينبو</option>
+                  <option value="رأس العين">رأس العين</option>
+                  <option value="طبربور">طبربور</option>
+                  <option value="صافوط">صافوط</option>
+                  <option value="وادي السير">وادي السير</option>
+                  <option value="فحيص">فحيص</option>
+                  <option value="ماحص">ماحص</option>
+                  <option value="أم السوس">أم السوس</option>
                 </optgroup>
                 <optgroup label="── 5.00 د.أ ──">
-                  <option value="K6">الياسمين</option>
-                  <option value="K6">أبو نصير</option>
-                  <option value="K6">شفا بدران</option>
-                  <option value="K6">مرج الحمام</option>
-                  <option value="K6">أبو علياء</option>
-                  <option value="K6">إسكان التلفزيون</option>
-                  <option value="K6">الرحبة الشمالية</option>
-                  <option value="K6">الرحبة الجنوبية</option>
-                  <option value="K6">بدر الجديدة</option>
-                  <option value="K6">وسط البلد</option>
-                  <option value="K6">الأشرفية</option>
-                  <option value="K6">حي الصحابة</option>
-                  <option value="K6">رغدان</option>
-                  <option value="K6">الهاشمي</option>
-                  <option value="K6">البقعة</option>
+                  <option value="الياسمين">الياسمين</option>
+                  <option value="أبو نصير">أبو نصير</option>
+                  <option value="شفا بدران">شفا بدران</option>
+                  <option value="مرج الحمام">مرج الحمام</option>
+                  <option value="أبو علياء">أبو علياء</option>
+                  <option value="إسكان التلفزيون">إسكان التلفزيون</option>
+                  <option value="الرحبة الشمالية">الرحبة الشمالية</option>
+                  <option value="الرحبة الجنوبية">الرحبة الجنوبية</option>
+                  <option value="بدر الجديدة">بدر الجديدة</option>
+                  <option value="وسط البلد">وسط البلد</option>
+                  <option value="الأشرفية">الأشرفية</option>
+                  <option value="حي الصحابة">حي الصحابة</option>
+                  <option value="رغدان">رغدان</option>
+                  <option value="الهاشمي">الهاشمي</option>
+                  <option value="البقعة">البقعة</option>
                 </optgroup>
                 <optgroup label="── 6.00 د.أ ──">
-                  <option value="K7">ناعور</option>
-                  <option value="K7">الوحدات</option>
-                  <option value="K7">المقابلين</option>
-                  <option value="K7">حي النزال</option>
-                  <option value="K7">الجبل الأخضر</option>
-                  <option value="K7">جبل النصر</option>
-                  <option value="K7">عدن</option>
-                  <option value="K7">عراق الأمير</option>
-                  <option value="K7">المباني</option>
-                  <option value="K7">جبل الزهور</option>
-                  <option value="K7">ضاحية الحاج حسن</option>
-                  <option value="K7">شارع الحرية</option>
-                  <option value="K7">المنارة</option>
-                  <option value="K7">أم النوارة</option>
+                  <option value="ناعور">ناعور</option>
+                  <option value="الوحدات">الوحدات</option>
+                  <option value="المقابلين">المقابلين</option>
+                  <option value="حي النزال">حي النزال</option>
+                  <option value="الجبل الأخضر">الجبل الأخضر</option>
+                  <option value="جبل النصر">جبل النصر</option>
+                  <option value="عدن">عدن</option>
+                  <option value="عراق الأمير">عراق الأمير</option>
+                  <option value="المباني">المباني</option>
+                  <option value="جبل الزهور">جبل الزهور</option>
+                  <option value="ضاحية الحاج حسن">ضاحية الحاج حسن</option>
+                  <option value="شارع الحرية">شارع الحرية</option>
+                  <option value="المنارة">المنارة</option>
+                  <option value="أم النوارة">أم النوارة</option>
                 </optgroup>
                 <optgroup label="── 7.00 د.أ ──">
-                  <option value="K8">الجويدة</option>
-                  <option value="K8">جاوا</option>
-                  <option value="K8">علندا</option>
-                  <option value="K8">صالحية العابد</option>
-                  <option value="K8">اليادودة</option>
-                  <option value="K8">القويسمة</option>
-                  <option value="K8">ماركا الشمالية</option>
-                  <option value="K8">ماركا الجنوبية</option>
-                  <option value="K8">خريبة السوق</option>
+                  <option value="الجويدة">الجويدة</option>
+                  <option value="جاوا">جاوا</option>
+                  <option value="علندا">علندا</option>
+                  <option value="صالحية العابد">صالحية العابد</option>
+                  <option value="اليادودة">اليادودة</option>
+                  <option value="القويسمة">القويسمة</option>
+                  <option value="ماركا الشمالية">ماركا الشمالية</option>
+                  <option value="ماركا الجنوبية">ماركا الجنوبية</option>
+                  <option value="خريبة السوق">خريبة السوق</option>
                 </optgroup>
                 <optgroup label="── 9.00 د.أ ──">
-                  <option value="K9">الرصيفة</option>
-                  <option value="K9">سحاب</option>
-                  <option value="K9">المشيرفة</option>
-                  <option value="K9">الجبل الشمالي</option>
+                  <option value="الرصيفة">الرصيفة</option>
+                  <option value="سحاب">سحاب</option>
+                  <option value="المشيرفة">المشيرفة</option>
+                  <option value="الجبل الشمالي">الجبل الشمالي</option>
                 </optgroup>
               </select>
               {showZoneSelectionError && (
