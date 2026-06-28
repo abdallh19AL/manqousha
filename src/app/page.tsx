@@ -212,6 +212,8 @@ export default function HomePage() {
           opacity: 0.9,
           WebkitMaskImage: "radial-gradient(ellipse 60% 75% at 65% 50%, black 45%, transparent 100%)",
           maskImage: "radial-gradient(ellipse 60% 75% at 65% 50%, black 45%, transparent 100%)",
+          willChange: "transform",
+          transform: "translateZ(0)",
         }}
         width={archOliveImg.width}
         height={archOliveImg.height}
@@ -230,6 +232,8 @@ export default function HomePage() {
           opacity: 0.45,
           WebkitMaskImage: "radial-gradient(ellipse 60% 70% at center, black 40%, transparent 95%)",
           maskImage: "radial-gradient(ellipse 60% 70% at center, black 40%, transparent 95%)",
+          willChange: "transform",
+          transform: "translateZ(0)",
         }}
         width={arabesqueWheatImg.width}
         height={arabesqueWheatImg.height}

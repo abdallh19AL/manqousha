@@ -95,21 +95,15 @@ function ProductCardComponent({ product, offer }: { product: Product; offer?: Pr
           border:     "1.5px solid #EDE8E2",
           cursor:     product.available ? "pointer" : "not-allowed",
           opacity:    product.available ? 1 : 0.5,
-          boxShadow:  "0 2px 10px rgba(0,0,0,0.06)",
-          transition: "transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease",
+          boxShadow:  "none",
+          transition: "transform 0.2s ease",
         }}
         onMouseEnter={(e) => {
           if (!product.available) return;
-          const el = e.currentTarget;
-          el.style.transform   = "translateY(-5px)";
-          el.style.boxShadow   = `0 20px 48px rgba(0,0,0,0.11), 0 6px 18px ${cfg.accent}28`;
-          el.style.borderColor = `${cfg.accent}55`;
+          e.currentTarget.style.transform = "translateY(-4px)";
         }}
         onMouseLeave={(e) => {
-          const el = e.currentTarget;
-          el.style.transform   = "translateY(0)";
-          el.style.boxShadow   = "0 2px 10px rgba(0,0,0,0.06)";
-          el.style.borderColor = "#EDE8E2";
+          e.currentTarget.style.transform = "translateY(0)";
         }}
       >
         {/* ── Thumbnail ── */}
@@ -186,7 +180,7 @@ function ProductCardComponent({ product, offer }: { product: Product; offer?: Pr
                 style={{
                   fontSize:   "88px",
                   lineHeight: "1",
-                  filter:     "drop-shadow(0 4px 14px rgba(0,0,0,0.14))",
+                  filter:     "none",
                 }}
               >
                 {product.emoji ?? cfg.emoji}
@@ -281,10 +275,8 @@ function ProductCardComponent({ product, offer }: { product: Product; offer?: Pr
                   ? "#22C55E"
                   : "linear-gradient(135deg, #E8622A, #C8922A)",
                 color:     "#FFFFFF",
-                boxShadow: added
-                  ? "0 0 16px #22C55E44"
-                  : "0 4px 14px rgba(232,98,42,0.42)",
-                transition: "background 0.2s, box-shadow 0.2s",
+                boxShadow: "none",
+                transition: "transform 0.15s ease",
               }}
             >
               {added ? "✓" : "+"}
