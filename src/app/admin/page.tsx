@@ -447,8 +447,9 @@ function OrdersPanel({
   const [cleanupMsg,     setCleanupMsg]     = useState<string | null>(null);
   const [orderOffersMap, setOrderOffersMap] = useState<Record<string, string[]>>({});
 
-  const knownIds       = useRef<Set<string>>(new Set());
-  const alarmAudioRef  = useRef<HTMLAudioElement | null>(null);
+  const knownIds        = useRef<Set<string>>(new Set());
+  const alarmAudioRef   = useRef<HTMLAudioElement | null>(null);
+  const hasUnlockedRef  = useRef(false);
 
   useEffect(() => {
     const match = document.cookie.match(/(?:^|;\s*)naseej_sound=([^;]+)/);
@@ -522,7 +523,9 @@ function OrdersPanel({
 
   useEffect(() => {
     if (!soundEnabled) return;
+    if (hasUnlockedRef.current) return;
     const unlock = () => {
+      if (hasUnlockedRef.current) return;
       const audio = alarmAudioRef.current;
       if (!audio) return;
       const wasMuted = audio.muted;
@@ -531,7 +534,11 @@ function OrdersPanel({
         audio.pause();
         audio.currentTime = 0;
         audio.muted = wasMuted;
+        hasUnlockedRef.current = true;
         setAudioUnlocked(true);
+        window.removeEventListener("click",       unlock);
+        window.removeEventListener("keydown",     unlock);
+        window.removeEventListener("pointerdown", unlock);
       }).catch(() => {
         audio.muted = wasMuted;
       });
