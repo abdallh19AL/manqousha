@@ -450,11 +450,14 @@ function OrdersPanel({
   const knownIds        = useRef<Set<string>>(new Set());
   const alarmAudioRef   = useRef<HTMLAudioElement | null>(null);
   const hasUnlockedRef  = useRef(false);
+  const newIdsSizeRef   = useRef(0);
 
   useEffect(() => {
     const match = document.cookie.match(/(?:^|;\s*)naseej_sound=([^;]+)/);
     if (match) setSoundEnabled(match[1] === "1");
   }, []);
+
+  useEffect(() => { newIdsSizeRef.current = newIds.size; }, [newIds.size]);
 
   const loadOrderOffers = async (order: OrderWithItems) => {
     const productIds = order.order_items.map((i) => i.product_id).filter(Boolean);
@@ -539,6 +542,10 @@ function OrdersPanel({
         window.removeEventListener("click",       unlock);
         window.removeEventListener("keydown",     unlock);
         window.removeEventListener("pointerdown", unlock);
+        // Start alarm for any orders that arrived before the first user gesture
+        if (newIdsSizeRef.current > 0) {
+          void audio.play();
+        }
       }).catch(() => {
         audio.muted = wasMuted;
       });
