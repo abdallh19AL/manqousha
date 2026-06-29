@@ -3607,13 +3607,13 @@ export default function AdminPage() {
       <div className="max-w-5xl mx-auto px-4 pt-4 pb-16">
         <StoreControlPanel />
 
-        {tab === "orders" && (
+        <div style={{ display: tab === "orders" ? undefined : "none" }}>
           <OrdersPanel
             onPendingAckChange={setPendingAckCount}
             onRealtimeStatusChange={handleRealtimeStatus}
             onStatsChange={handleStatsChange}
           />
-        )}
+        </div>
         {tab === "products"      && <ProductsPanel />}
         {tab === "combos"        && <CombosPanel />}
         {tab === "zones"         && <DeliveryZonesPanel />}
