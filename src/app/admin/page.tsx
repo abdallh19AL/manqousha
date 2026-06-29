@@ -447,8 +447,8 @@ function OrdersPanel({
   const [cleanupMsg,     setCleanupMsg]     = useState<string | null>(null);
   const [orderOffersMap, setOrderOffersMap] = useState<Record<string, string[]>>({});
 
-  const knownIds    = useRef<Set<string>>(new Set());
-  const loopRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const knownIds       = useRef<Set<string>>(new Set());
+  const alarmAudioRef  = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const match = document.cookie.match(/(?:^|;\s*)naseej_sound=([^;]+)/);
@@ -489,8 +489,6 @@ function OrdersPanel({
     }
   };
 
-  const audioCtxRef = useRef<AudioContext | null>(null);
-
   const realtimeStatusCb = useRef(onRealtimeStatusChange);
   useEffect(() => { realtimeStatusCb.current = onRealtimeStatusChange; }, [onRealtimeStatusChange]);
 
@@ -518,24 +516,36 @@ function OrdersPanel({
     setSoundEnabled((prev) => {
       const next = !prev;
       document.cookie = `naseej_sound=${next ? "1" : "0"};path=/;max-age=31536000`;
-      if (!next) {
-        if (loopRef.current !== null) { clearInterval(loopRef.current); loopRef.current = null; }
-      }
       return next;
     });
   }, []);
 
   useEffect(() => {
+    const audio = new Audio("/order-alarm.wav");
+    audio.loop = true;
+    audio.preload = "auto";
+    alarmAudioRef.current = audio;
+    return () => {
+      audio.pause();
+      alarmAudioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!soundEnabled) return;
     const unlock = () => {
-      try {
-        if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
-        if (audioCtxRef.current.state === "suspended") {
-          audioCtxRef.current.resume().then(() => setAudioUnlocked(true)).catch(() => {});
-        } else {
-          setAudioUnlocked(true);
-        }
-      } catch {}
+      const audio = alarmAudioRef.current;
+      if (!audio) return;
+      const wasMuted = audio.muted;
+      audio.muted = true;
+      audio.play().then(() => {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.muted = wasMuted;
+        setAudioUnlocked(true);
+      }).catch(() => {
+        audio.muted = wasMuted;
+      });
     };
     unlock();
     window.addEventListener("click",       unlock);
@@ -548,46 +558,23 @@ function OrdersPanel({
     };
   }, [soundEnabled]);
 
-  const playOrderAlarm = useCallback(async () => {
-    try {
-      if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
-      const ctx = audioCtxRef.current;
-      if (ctx.state === "suspended") {
-        await ctx.resume();
-      }
-      if (ctx.state !== "running") return;
-      const BEEP_FREQ = 880;
-      const BEEP_MS   = 0.20;
-      const GAP_MS    = 0.10;
-      const GAIN_VAL  = 1.5;
-      for (let i = 0; i < 3; i++) {
-        const t    = ctx.currentTime + i * (BEEP_MS + GAP_MS);
-        const osc  = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type            = "square";
-        osc.frequency.value = BEEP_FREQ;
-        gain.gain.setValueAtTime(GAIN_VAL, t);
-        gain.gain.setValueAtTime(0, t + BEEP_MS);
-        osc.start(t);
-        osc.stop(t + BEEP_MS);
-      }
-    } catch (e) {
-      console.error("[Audio] playOrderAlarm error:", e);
-    }
+  const playOrderAlarm = useCallback(() => {
+    const audio = alarmAudioRef.current;
+    if (!audio) return;
+    audio.play().then(() => setAudioUnlocked(true)).catch((e) => {
+      console.warn("[Audio] play blocked:", e);
+    });
   }, []);
 
   const startLoop = useCallback(() => {
-    if (loopRef.current !== null) return;
-    void playOrderAlarm();
-    loopRef.current = setInterval(() => { void playOrderAlarm(); }, 2500);
+    playOrderAlarm();
   }, [playOrderAlarm]);
 
   const stopLoop = useCallback(() => {
-    if (loopRef.current !== null) {
-      clearInterval(loopRef.current);
-      loopRef.current = null;
+    const audio = alarmAudioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
     }
   }, []);
 
@@ -595,6 +582,16 @@ function OrdersPanel({
     if (newIds.size > 0 && soundEnabled) startLoop();
     else stopLoop();
   }, [newIds.size, soundEnabled, startLoop, stopLoop]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && soundEnabled && newIds.size > 0) {
+        playOrderAlarm();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [soundEnabled, newIds.size, playOrderAlarm]);
 
   useEffect(() => () => stopLoop(), [stopLoop]);
   useEffect(() => { onPendingAckChange(newIds.size); }, [newIds.size, onPendingAckChange]);
@@ -793,7 +790,7 @@ function OrdersPanel({
           {soundEnabled ? "الصوت مفعّل ✓" : "الصوت متوقف"}
         </button>
         <button
-          onClick={() => { if (!audioCtxRef.current) { audioCtxRef.current = new AudioContext(); } audioCtxRef.current.resume().then(() => { setAudioUnlocked(true); playOrderAlarm(); }); }}
+          onClick={() => { playOrderAlarm(); setTimeout(() => stopLoop(), 1600); }}
           className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl transition-colors"
           style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
         >
