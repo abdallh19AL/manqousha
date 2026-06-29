@@ -451,6 +451,8 @@ function OrdersPanel({
   const alarmAudioRef   = useRef<HTMLAudioElement | null>(null);
   const hasUnlockedRef  = useRef(false);
   const newIdsSizeRef   = useRef(0);
+  const pollWorkerRef   = useRef<Worker | null>(null);
+  const fetchOrdersRef  = useRef<(isInitial: boolean) => Promise<void>>(async () => {});
 
   useEffect(() => {
     const match = document.cookie.match(/(?:^|;\s*)naseej_sound=([^;]+)/);
@@ -588,13 +590,23 @@ function OrdersPanel({
 
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === "visible" && soundEnabled && newIds.size > 0) {
+      if (document.visibilityState !== "visible") return;
+      // Reconnect realtime in case it dropped while backgrounded
+      try { supabase.realtime.connect(); } catch {}
+      // Refetch — new orders flow through handleNewOrder and alarm automatically
+      fetchOrdersRef.current(false);
+      // Resume alarm for orders already tracked but alarm may have been throttled
+      if (soundEnabled && newIdsSizeRef.current > 0) {
         playOrderAlarm();
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [soundEnabled, newIds.size, playOrderAlarm]);
+    window.addEventListener("focus", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleVisibility);
+    };
+  }, [soundEnabled, playOrderAlarm]);
 
   useEffect(() => () => stopLoop(), [stopLoop]);
   useEffect(() => { onPendingAckChange(newIds.size); }, [newIds.size, onPendingAckChange]);
@@ -634,6 +646,38 @@ function OrdersPanel({
       setOrders(list);
     }
   }, [handleNewOrder]);
+
+  // Keep the ref current so the worker can always call the latest fetchOrders
+  useEffect(() => { fetchOrdersRef.current = fetchOrders; }, [fetchOrders]);
+
+  // ── Web Worker fallback poll (Layer 3) ─────────────────────────
+  // Runs off the main thread — immune to background-tab timer throttling.
+  // On each tick, fetchOrders(false) diffs against knownIds and alarms for any new orders.
+  useEffect(() => {
+    const workerCode = `
+      let id = null;
+      self.onmessage = (e) => {
+        if (e.data === "start") {
+          if (id !== null) return;
+          id = setInterval(() => self.postMessage("tick"), 20000);
+        } else if (e.data === "stop") {
+          if (id !== null) { clearInterval(id); id = null; }
+        }
+      };
+    `;
+    const blob   = new Blob([workerCode], { type: "application/javascript" });
+    const worker = new Worker(URL.createObjectURL(blob));
+    pollWorkerRef.current = worker;
+    worker.onmessage = (e) => {
+      if (e.data === "tick") fetchOrdersRef.current(false);
+    };
+    worker.postMessage("start");
+    return () => {
+      worker.postMessage("stop");
+      worker.terminate();
+      pollWorkerRef.current = null;
+    };
+  }, []);
 
   // ── Realtime subscription + polling fallback ───────────────────
   useEffect(() => {
