@@ -746,25 +746,23 @@ function OrdersPanel({
     return d.toLocaleDateString("ar-JO", { month: "short", day: "numeric" });
   };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <div className="text-5xl" style={{ animationName: "flame-flicker", animationDuration: "0.8s", animationTimingFunction: "ease-in-out", animationIterationCount: "infinite", display: "inline-block" }}>
-          🔥
-        </div>
-        <div className="flex gap-1.5">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="w-2 h-2 rounded-full" style={{ background: C.primary, animationName: "glow-pulse", animationDuration: "1s", animationDelay: `${i * 0.2}s`, animationTimingFunction: "ease-in-out", animationIterationCount: "infinite" }} />
-          ))}
-        </div>
-        <p className="text-xs" style={{ color: C.faint }}>جارٍ التحميل...</p>
-      </div>
-    );
-  }
-
   return (
-    <div>
+    <>
       <audio ref={alarmAudioRef} src="/order-alarm.wav" loop preload="auto" style={{ display: "none" }} />
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <div className="text-5xl" style={{ animationName: "flame-flicker", animationDuration: "0.8s", animationTimingFunction: "ease-in-out", animationIterationCount: "infinite", display: "inline-block" }}>
+            🔥
+          </div>
+          <div className="flex gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="w-2 h-2 rounded-full" style={{ background: C.primary, animationName: "glow-pulse", animationDuration: "1s", animationDelay: `${i * 0.2}s`, animationTimingFunction: "ease-in-out", animationIterationCount: "infinite" }} />
+            ))}
+          </div>
+          <p className="text-xs" style={{ color: C.faint }}>جارٍ التحميل...</p>
+        </div>
+      ) : (
+      <div>
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <button
@@ -1121,6 +1119,8 @@ function OrdersPanel({
         </div>
       )}
     </div>
+      )}
+    </>
   );
 }
 
