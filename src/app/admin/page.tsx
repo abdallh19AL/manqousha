@@ -521,17 +521,6 @@ function OrdersPanel({
   }, []);
 
   useEffect(() => {
-    const audio = new Audio("/order-alarm.wav");
-    audio.loop = true;
-    audio.preload = "auto";
-    alarmAudioRef.current = audio;
-    return () => {
-      audio.pause();
-      alarmAudioRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
     if (!soundEnabled) return;
     const unlock = () => {
       const audio = alarmAudioRef.current;
@@ -775,6 +764,7 @@ function OrdersPanel({
 
   return (
     <div>
+      <audio ref={alarmAudioRef} src="/order-alarm.wav" loop preload="auto" style={{ display: "none" }} />
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <button
