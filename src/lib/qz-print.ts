@@ -39,10 +39,22 @@ export async function printReceipt(order: OrderWithItems): Promise<void> {
 
   const itemsHtml = order.order_items.map((item) => {
     const itemTotal = (item.price * item.quantity).toFixed(2);
-    return `<tr>
-      <td style="text-align:right;padding:2px 0;">${item.quantity} × ${item.product_name}</td>
-      <td style="text-align:left;padding:2px 0;white-space:nowrap;">${itemTotal} د.أ</td>
+    const parts = item.product_name.split(" | ");
+    const mainName = parts[0];
+    const subLines = parts.slice(1);
+
+    let rows = `<tr>
+      <td style="text-align:right;padding:4px 0 2px;font-weight:bold;">${item.quantity} × ${mainName}</td>
+      <td style="text-align:left;padding:4px 0 2px;white-space:nowrap;font-weight:bold;">${itemTotal} د.أ</td>
     </tr>`;
+
+    for (const line of subLines) {
+      rows += `<tr>
+        <td colspan="2" style="text-align:right;padding:1px 12px 1px 0;font-size:12px;color:#333;">◦ ${line}</td>
+      </tr>`;
+    }
+
+    return rows;
   }).join("");
 
   const html = `
