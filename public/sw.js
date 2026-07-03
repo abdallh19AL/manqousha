@@ -1,5 +1,5 @@
-const CACHE_NAME = "manqousha-v1";
-const STATIC_ASSETS = ["/", "/cart", "/login", "/signup", "/orders"];
+const CACHE_NAME = "manqousha-v2";
+const STATIC_ASSETS = ["/", "/cart", "/login", "/signup", "/orders", "/order-alarm.wav"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
@@ -20,11 +20,14 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   if (e.request.url.includes("/api/") || e.request.url.includes("supabase")) return;
+  if (e.request.headers.has("range")) return; // range requests (audio/video) pass through uncached
   e.respondWith(
     fetch(e.request)
       .then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
+        if (res.ok && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
+        }
         return res;
       })
       .catch(() => caches.match(e.request))
