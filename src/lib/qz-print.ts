@@ -6,6 +6,21 @@ declare global {
 
 let connectPromise: Promise<void> | null = null;
 
+function stripEmoji(text: string): string {
+  return Array.from(text)
+    .filter((ch) => {
+      const cp = ch.codePointAt(0)!;
+      return !(
+        (cp >= 0x1f000 && cp <= 0x1ffff) ||
+        (cp >= 0x2600 && cp <= 0x27bf) ||
+        (cp >= 0x2190 && cp <= 0x21ff) ||
+        (cp >= 0x2b00 && cp <= 0x2bff)
+      );
+    })
+    .join("")
+    .trim();
+}
+
 async function ensureConnected(): Promise<void> {
   const qz = window.qz;
   if (!qz) throw new Error("QZ Tray غير محمّل");
@@ -40,8 +55,8 @@ export async function printReceipt(order: OrderWithItems): Promise<void> {
   const itemsHtml = order.order_items.map((item) => {
     const itemTotal = (item.price * item.quantity).toFixed(2);
     const parts = item.product_name.split(" | ");
-    const mainName = parts[0];
-    const subLines = parts.slice(1);
+    const mainName = stripEmoji(parts[0]);
+    const subLines = parts.slice(1).map(stripEmoji);
 
     let rows = `<tr>
       <td style="text-align:right;padding:4px 0 2px;font-weight:bold;">${item.quantity} × ${mainName}</td>
@@ -64,10 +79,10 @@ export async function printReceipt(order: OrderWithItems): Promise<void> {
       <div style="text-align:center;font-size:12px;margin-bottom:6px;">${dateStr}</div>
       <div style="border-top:2px dashed #000;margin:6px 0;"></div>
       <div style="font-size:13px;line-height:1.6;">
-        <div><b>الزبون:</b> ${order.customer_name}</div>
+        <div><b>الزبون:</b> ${stripEmoji(order.customer_name)}</div>
         <div><b>الهاتف:</b> ${order.customer_phone}</div>
-        ${order.delivery_zone ? `<div><b>المنطقة:</b> ${order.delivery_zone}</div>` : ""}
-        ${order.customer_address ? `<div><b>العنوان:</b> ${order.customer_address}</div>` : ""}
+        ${order.delivery_zone ? `<div><b>المنطقة:</b> ${stripEmoji(order.delivery_zone)}</div>` : ""}
+        ${order.customer_address ? `<div><b>العنوان:</b> ${stripEmoji(order.customer_address)}</div>` : ""}
       </div>
       <div style="border-top:2px dashed #000;margin:6px 0;"></div>
       <div style="font-size:13px;font-weight:bold;margin-bottom:4px;">الطلبات:</div>
@@ -80,7 +95,7 @@ export async function printReceipt(order: OrderWithItems): Promise<void> {
       </div>
       <div style="border-top:2px dashed #000;margin:6px 0;"></div>
       <div style="text-align:center;font-size:13px;">طريقة الدفع: ${payMethod}</div>
-      ${order.notes ? `<div style="font-size:13px;margin-top:4px;"><b>ملاحظات:</b> ${order.notes}</div>` : ""}
+      ${order.notes ? `<div style="font-size:13px;margin-top:4px;"><b>ملاحظات:</b> ${stripEmoji(order.notes)}</div>` : ""}
       <div style="text-align:center;font-size:14px;margin-top:10px;">شكراً لطلبكم</div>
     </div>
   `;
