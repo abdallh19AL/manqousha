@@ -552,7 +552,11 @@ function OrdersPanel({
         audio.muted = wasMuted;
       });
     };
-    unlock();
+    // Do NOT call unlock() eagerly on mount: a muted play() always succeeds
+    // regardless of user gesture, so an eager call would mark audio as
+    // "unlocked" and strip these listeners before any real interaction
+    // happens — leaving the browser's actual (unmuted) autoplay permission
+    // ungranted, so later automatic playOrderAlarm() calls stay blocked.
     window.addEventListener("click",       unlock);
     window.addEventListener("keydown",     unlock);
     window.addEventListener("pointerdown", unlock);
