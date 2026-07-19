@@ -449,6 +449,7 @@ function OrdersPanel({
 
   const knownIds        = useRef<Set<string>>(new Set());
   const alarmAudioRef   = useRef<HTMLAudioElement | null>(null);
+  const keepAliveAudioRef = useRef<HTMLAudioElement | null>(null);
   const hasUnlockedRef  = useRef(false);
   const newIdsSizeRef   = useRef(0);
   const pollWorkerRef   = useRef<Worker | null>(null);
@@ -527,8 +528,11 @@ function OrdersPanel({
   }, []);
 
   useEffect(() => {
-    if (!soundEnabled) return;
-    if (hasUnlockedRef.current) return;
+    // Gated on audioUnlocked (state, not just the ref) so that if
+    // playOrderAlarm ever loses permission and resets audioUnlocked to
+    // false, this effect re-runs and re-arms the real gesture listeners
+    // for the admin's next click/keydown/tap.
+    if (!soundEnabled || audioUnlocked) return;
     const unlock = () => {
       if (hasUnlockedRef.current) return;
       const audio = alarmAudioRef.current;
@@ -544,6 +548,17 @@ function OrdersPanel({
         window.removeEventListener("click",       unlock);
         window.removeEventListener("keydown",     unlock);
         window.removeEventListener("pointerdown", unlock);
+        // Start the silent keep-alive: this call is inside a real user
+        // gesture, so it's guaranteed to be allowed. Once playing, it
+        // keeps the tab "audible" to the browser, which exempts it from
+        // background timer/task throttling and tab freezing — the actual
+        // reason the alarm silently failed to play after long
+        // backgrounding even though detection kept working.
+        const keepAlive = keepAliveAudioRef.current;
+        if (keepAlive) {
+          keepAlive.volume = 0.02;
+          void keepAlive.play();
+        }
         // Start alarm for any orders that arrived before the first user gesture
         if (newIdsSizeRef.current > 0) {
           void audio.play();
@@ -565,13 +580,35 @@ function OrdersPanel({
       window.removeEventListener("keydown",     unlock);
       window.removeEventListener("pointerdown", unlock);
     };
-  }, [soundEnabled]);
+  }, [soundEnabled, audioUnlocked]);
+
+  // Safety net for the keep-alive: loop=true should make it play forever,
+  // but if the OS/browser ever force-pauses it (e.g. media focus loss),
+  // resume it — as long as we've genuinely unlocked at least once.
+  useEffect(() => {
+    const audio = keepAliveAudioRef.current;
+    if (!audio) return;
+    const restart = () => { if (hasUnlockedRef.current) void audio.play(); };
+    audio.addEventListener("ended", restart);
+    audio.addEventListener("pause", restart);
+    return () => {
+      audio.removeEventListener("ended", restart);
+      audio.removeEventListener("pause", restart);
+    };
+  }, []);
 
   const playOrderAlarm = useCallback(() => {
     const audio = alarmAudioRef.current;
     if (!audio) return;
     audio.play().then(() => setAudioUnlocked(true)).catch((e) => {
-      console.warn("[Audio] play blocked:", e);
+      console.warn("[Audio] play blocked — re-arming unlock listeners:", e);
+      // The browser no longer grants us autoplay — most likely the
+      // keep-alive itself got suspended. Don't pretend a muted play/pause
+      // fixes this; drop back to "locked" so the unlock effect re-attaches
+      // real click/keydown/pointerdown listeners and the "tap anywhere"
+      // hint reappears for the admin's next genuine interaction.
+      hasUnlockedRef.current = false;
+      setAudioUnlocked(false);
     });
   }, []);
 
@@ -811,6 +848,7 @@ function OrdersPanel({
   return (
     <>
       <audio ref={alarmAudioRef} src="/order-alarm.wav" loop preload="auto" style={{ display: "none" }} />
+      <audio ref={keepAliveAudioRef} src="/keepalive.wav" loop preload="auto" style={{ display: "none" }} />
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <div className="text-5xl" style={{ animationName: "flame-flicker", animationDuration: "0.8s", animationTimingFunction: "ease-in-out", animationIterationCount: "infinite", display: "inline-block" }}>

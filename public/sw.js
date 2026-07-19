@@ -1,5 +1,5 @@
-const CACHE_NAME = "manqousha-v2";
-const STATIC_ASSETS = ["/", "/cart", "/login", "/signup", "/orders", "/order-alarm.wav"];
+const CACHE_NAME = "manqousha-v3";
+const STATIC_ASSETS = ["/", "/cart", "/login", "/signup", "/orders", "/order-alarm.wav", "/keepalive.wav"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
