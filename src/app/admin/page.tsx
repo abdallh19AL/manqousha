@@ -448,6 +448,7 @@ function OrdersPanel({
   const [orderOffersMap, setOrderOffersMap] = useState<Record<string, string[]>>({});
 
   const knownIds        = useRef<Set<string>>(new Set());
+  const deletedIdsRef    = useRef<Set<string>>(new Set());
   const alarmAudioRef   = useRef<HTMLAudioElement | null>(null);
   const keepAliveAudioRef = useRef<HTMLAudioElement | null>(null);
   const hasUnlockedRef  = useRef(false);
@@ -673,7 +674,11 @@ function OrdersPanel({
       .order("created_at", { ascending: false });
     if (error) { console.error("[Orders] Fetch error:", error); return; }
     if (!data)  return;
-    const list = data as OrderWithItems[];
+    // Drop anything permanently deleted, even if this response is a stale
+    // snapshot queried before the delete happened — otherwise a poll that
+    // was already in flight when deleteOrder/deleteStaleFromDB ran can
+    // resurrect an already-closed order and misfire the alarm for it.
+    const list = (data as OrderWithItems[]).filter((o) => !deletedIdsRef.current.has(o.id));
     if (isInitial) {
       list.forEach((o) => knownIds.current.add(o.id));
       setOrders(list);
@@ -786,7 +791,7 @@ function OrdersPanel({
     if (count > 0) {
       const deletedIds = new Set(data.map((r) => r.id as string));
       setOrders((prev) => prev.filter((o) => !deletedIds.has(o.id)));
-      deletedIds.forEach((id) => knownIds.current.delete(id));
+      deletedIds.forEach((id) => { knownIds.current.delete(id); deletedIdsRef.current.add(id); });
     }
     return count;
   }, []);
@@ -798,6 +803,7 @@ function OrdersPanel({
     setOrders((prev) => prev.filter((o) => o.id !== id));
     setNewIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
     knownIds.current.delete(id);
+    deletedIdsRef.current.add(id);
   }, []);
 
   const runCleanup = useCallback(async () => {
