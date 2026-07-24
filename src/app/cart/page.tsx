@@ -977,16 +977,21 @@ export default function CartPage() {
                           background: `linear-gradient(135deg, ${C.primary}0D, ${C.gold}08)`,
                           border:     `2px solid ${C.primary}`,
                           boxShadow:  `0 6px 20px ${C.primary}18`,
+                          animationName: "none",
                         }
                       : {
-                          background: C.bg,
-                          border:     `1px solid ${C.border}`,
+                          background: "linear-gradient(135deg, #F0FDF4, #FFFFFF)",
+                          border:     "2px solid #22C55E",
+                          animationName: "cash-pulse",
+                          animationDuration: "2s",
+                          animationIterationCount: "infinite",
+                          animationTimingFunction: "ease-in-out",
                         }
                   }
                 >
                   <Banknote className="w-10 h-10" style={{ color: "#22C55E" }} />
                   <div>
-                    <p className="font-bold text-sm" style={{ color: paymentMethod === "cash" ? C.primary : C.text }}>
+                    <p className="font-bold text-sm" style={{ color: paymentMethod === "cash" ? C.primary : "#166534" }}>
                       الدفع عند الاستلام
                     </p>
                     <p className="text-xs mt-1" style={{ color: C.faint }}>ادفع نقداً عند وصول الطلب</p>
