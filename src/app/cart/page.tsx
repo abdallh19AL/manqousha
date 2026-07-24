@@ -109,9 +109,6 @@ export default function CartPage() {
           customer_phone: typeof p.customer_phone === "string" ? p.customer_phone : prev.customer_phone,
           notes:          typeof p.notes          === "string" ? p.notes          : prev.notes,
         }));
-        if (p.paymentMethod === "cash" || p.paymentMethod === "electronic") {
-          setPaymentMethod(p.paymentMethod as PaymentMethod);
-        }
         if (typeof p.selectedArea === "string") setSelectedArea(p.selectedArea);
         if (p.orderType === "delivery" || p.orderType === "pickup") setOrderType(p.orderType);
       }
@@ -199,7 +196,6 @@ export default function CartPage() {
           customer_name:  form.customer_name,
           customer_phone: form.customer_phone,
           notes:          form.notes,
-          paymentMethod,
           selectedArea,
           orderType,
         }));
@@ -208,7 +204,7 @@ export default function CartPage() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [form, paymentMethod, selectedArea, isRestored]);
+  }, [form, selectedArea, isRestored]);
 
   // ── Delivery calculation ──────────────────────────────────────
   const subtotal    = getTotal();
@@ -983,7 +979,7 @@ export default function CartPage() {
                           background: "linear-gradient(135deg, #F0FDF4, #FFFFFF)",
                           border:     "2px solid #22C55E",
                           animationName: "cash-pulse",
-                          animationDuration: "2s",
+                          animationDuration: "1.4s",
                           animationIterationCount: "infinite",
                           animationTimingFunction: "ease-in-out",
                         }
