@@ -69,7 +69,7 @@ export default function CartPage() {
   const [nameTouched,     setNameTouched]     = useState(false);
   const [phoneTouched,    setPhoneTouched]    = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [paymentMethod,   setPaymentMethod]   = useState<PaymentMethod | null>(null);
+  const [paymentMethod,   setPaymentMethod]   = useState<PaymentMethod | null>("cash");
   const [electronicSub,   setElectronicSub]   = useState<ElectronicSub | null>(null);
   const [showElecMsg,      setShowElecMsg]      = useState(false);
   const [confirmedTotal,   setConfirmedTotal]   = useState(0);
@@ -91,7 +91,7 @@ export default function CartPage() {
   // Reset payment method if electronic gets disabled remotely
   useEffect(() => {
     if (!electronicPaymentEnabled && paymentMethod === "electronic") {
-      setPaymentMethod(null);
+      setPaymentMethod("cash");
     }
   }, [electronicPaymentEnabled, paymentMethod]);
 
@@ -973,15 +973,10 @@ export default function CartPage() {
                           background: `linear-gradient(135deg, ${C.primary}0D, ${C.gold}08)`,
                           border:     `2px solid ${C.primary}`,
                           boxShadow:  `0 6px 20px ${C.primary}18`,
-                          animationName: "none",
                         }
                       : {
                           background: "linear-gradient(135deg, #F0FDF4, #FFFFFF)",
                           border:     "2px solid #22C55E",
-                          animationName: "cash-pulse",
-                          animationDuration: "1.4s",
-                          animationIterationCount: "infinite",
-                          animationTimingFunction: "ease-in-out",
                         }
                   }
                 >
