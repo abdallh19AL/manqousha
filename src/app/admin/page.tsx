@@ -1625,7 +1625,7 @@ function ProductsPanel() {
       setUploading(true);
       const ext  = imageFile.name.split(".").pop() ?? "jpg";
       const path = `${productId}/${Date.now()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from("product-images").upload(path, imageFile);
+      const { error: uploadErr } = await supabase.storage.from("product-images").upload(path, imageFile, { cacheControl: "31536000" });
       setUploading(false);
       if (uploadErr) {
         setImageError(`فشل رفع الصورة: ${uploadErr.message}`);
@@ -3096,7 +3096,7 @@ function CombosPanel() {
     setUploading(true);
     const ext  = imageFile.name.split(".").pop() ?? "jpg";
     const path = `combo-${comboId}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("product-images").upload(path, imageFile);
+    const { error } = await supabase.storage.from("product-images").upload(path, imageFile, { cacheControl: "31536000" });
     setUploading(false);
     if (error) { setImageError(`فشل رفع الصورة: ${error.message}`); return null; }
     return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
