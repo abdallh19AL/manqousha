@@ -71,6 +71,52 @@ const ALL_CATEGORIES = [
 const INPUT =
   "w-full bg-white border border-gray-200 focus:border-orange-400 rounded-xl px-4 py-2.5 text-stone-900 outline-none transition-colors text-sm";
 
+const MAX_IMAGE_DIMENSION = 1200;
+const IMAGE_JPEG_QUALITY  = 0.8;
+// Must stay in sync with the product-images bucket's file_size_limit (Supabase dashboard / 007_storage_bucket.sql).
+const BUCKET_IMAGE_SIZE_LIMIT = 5 * 1024 * 1024;
+
+// Resizes to maxDim and re-encodes as JPEG — also converts HEIC/HEIF phone photos
+// (which the bucket rejects outright) into a mime type the bucket accepts.
+function compressImage(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("فشل قراءة الملف"));
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+        if (width > height) {
+          height = Math.round((height * MAX_IMAGE_DIMENSION) / width);
+          width = MAX_IMAGE_DIMENSION;
+        } else {
+          width = Math.round((width * MAX_IMAGE_DIMENSION) / height);
+          height = MAX_IMAGE_DIMENSION;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("تعذر إنشاء صورة مصغرة")); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { reject(new Error("فشل ضغط الصورة")); return; }
+          resolve(new File([blob], "image.jpg", { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        IMAGE_JPEG_QUALITY
+      );
+    };
+    img.onerror = () => reject(new Error("تعذر تحميل الصورة — تأكد أنه ملف صورة صالح"));
+    reader.readAsDataURL(file);
+  });
+}
+
 /* ════════════════════════════════════════════════════════════
    Login / Unauthorized
 ══════════════════════════════════════════════════════════════ */
@@ -1520,13 +1566,24 @@ function ProductsPanel() {
   const setSize    = (i: number, k: keyof SizeRow, v: string) =>
     setEditForm((prev) => ({ ...prev, sizes: prev.sizes.map((s, idx) => idx === i ? { ...s, [k]: v } : s) }));
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 30 * 1024 * 1024) { setImageError("حجم الصورة يجب أن لا يتجاوز 30 ميغابايت"); e.target.value = ""; return; }
     setImageError("");
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    try {
+      const compressed = await compressImage(file);
+      if (compressed.size > BUCKET_IMAGE_SIZE_LIMIT) {
+        setImageError("تعذر ضغط الصورة إلى الحجم المطلوب (أقل من 5 ميغابايت)، جرّب صورة أخرى");
+        e.target.value = "";
+        return;
+      }
+      setImageFile(compressed);
+      setImagePreview(URL.createObjectURL(compressed));
+    } catch {
+      setImageError("تعذر معالجة الصورة، جرّب صورة أخرى");
+      e.target.value = "";
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -1571,7 +1628,7 @@ function ProductsPanel() {
       const { error: uploadErr } = await supabase.storage.from("product-images").upload(path, imageFile);
       setUploading(false);
       if (uploadErr) {
-        setImageError("فشل رفع الصورة، حاول مرة أخرى");
+        setImageError(`فشل رفع الصورة: ${uploadErr.message}`);
         setSaving(false);
         return;
       }
@@ -3015,11 +3072,24 @@ function CombosPanel() {
     setImageFile(null); setImagePreview(""); setImageError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 30 * 1024 * 1024) { setImageError("حجم الصورة يجب أن لا يتجاوز 30 ميغابايت"); e.target.value = ""; return; }
-    setImageError(""); setImageFile(file); setImagePreview(URL.createObjectURL(file));
+    setImageError("");
+    try {
+      const compressed = await compressImage(file);
+      if (compressed.size > BUCKET_IMAGE_SIZE_LIMIT) {
+        setImageError("تعذر ضغط الصورة إلى الحجم المطلوب (أقل من 5 ميغابايت)، جرّب صورة أخرى");
+        e.target.value = "";
+        return;
+      }
+      setImageFile(compressed);
+      setImagePreview(URL.createObjectURL(compressed));
+    } catch {
+      setImageError("تعذر معالجة الصورة، جرّب صورة أخرى");
+      e.target.value = "";
+    }
   };
   const uploadImage = async (comboId: string): Promise<string | null> => {
     if (!imageFile) return null;
@@ -3028,7 +3098,7 @@ function CombosPanel() {
     const path = `combo-${comboId}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("product-images").upload(path, imageFile);
     setUploading(false);
-    if (error) { setImageError("فشل رفع الصورة"); return null; }
+    if (error) { setImageError(`فشل رفع الصورة: ${error.message}`); return null; }
     return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
   };
 
