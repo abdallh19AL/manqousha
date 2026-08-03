@@ -71,14 +71,23 @@ const ALL_CATEGORIES = [
 const INPUT =
   "w-full bg-white border border-gray-200 focus:border-orange-400 rounded-xl px-4 py-2.5 text-stone-900 outline-none transition-colors text-sm";
 
-const MAX_IMAGE_DIMENSION = 1200;
-const IMAGE_JPEG_QUALITY  = 0.8;
-// Must stay in sync with the product-images bucket's file_size_limit (Supabase dashboard / 007_storage_bucket.sql).
-const BUCKET_IMAGE_SIZE_LIMIT = 5 * 1024 * 1024;
+// Hard cap the owner asked for. Bucket-level file_size_limit is 5MB (Supabase
+// dashboard / 007_storage_bucket.sql) but this app-level target is stricter.
+const MAX_IMAGE_BYTES = 1024 * 1024;
 
-// Resizes to maxDim and re-encodes as JPEG — also converts HEIC/HEIF phone photos
-// (which the bucket rejects outright) into a mime type the bucket accepts.
-function compressImage(file: File): Promise<File> {
+// Attempted in order until one result lands under MAX_IMAGE_BYTES; each step
+// re-encodes as JPEG (also converts HEIC/HEIF phone photos, which the bucket
+// rejects outright, into a mime type it accepts). The last step's result is
+// used even if still over the cap — real photos never reach that step.
+const COMPRESSION_STEPS: { maxDim: number; quality: number }[] = [
+  { maxDim: 1200, quality: 0.8 },
+  { maxDim: 1200, quality: 0.7 },
+  { maxDim: 1200, quality: 0.6 },
+  { maxDim: 1000, quality: 0.7 },
+  { maxDim: 800,  quality: 0.7 },
+];
+
+function loadImageElement(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const reader = new FileReader();
@@ -86,35 +95,50 @@ function compressImage(file: File): Promise<File> {
       img.src = e.target?.result as string;
     };
     reader.onerror = () => reject(new Error("فشل قراءة الملف"));
-    img.onload = () => {
-      let { width, height } = img;
-      if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
-        if (width > height) {
-          height = Math.round((height * MAX_IMAGE_DIMENSION) / width);
-          width = MAX_IMAGE_DIMENSION;
-        } else {
-          width = Math.round((width * MAX_IMAGE_DIMENSION) / height);
-          height = MAX_IMAGE_DIMENSION;
-        }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { reject(new Error("تعذر إنشاء صورة مصغرة")); return; }
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) { reject(new Error("فشل ضغط الصورة")); return; }
-          resolve(new File([blob], "image.jpg", { type: "image/jpeg" }));
-        },
-        "image/jpeg",
-        IMAGE_JPEG_QUALITY
-      );
-    };
+    img.onload = () => resolve(img);
     img.onerror = () => reject(new Error("تعذر تحميل الصورة — تأكد أنه ملف صورة صالح"));
     reader.readAsDataURL(file);
   });
+}
+
+function encodeAtStep(img: HTMLImageElement, maxDim: number, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    let { width, height } = img;
+    if (width > maxDim || height > maxDim) {
+      if (width > height) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { reject(new Error("تعذر إنشاء صورة مصغرة")); return; }
+    ctx.drawImage(img, 0, 0, width, height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) { reject(new Error("فشل ضغط الصورة")); return; }
+        resolve(blob);
+      },
+      "image/jpeg",
+      quality
+    );
+  });
+}
+
+async function compressImage(file: File): Promise<File> {
+  const img = await loadImageElement(file);
+  let lastBlob: Blob | null = null;
+  for (const step of COMPRESSION_STEPS) {
+    const blob = await encodeAtStep(img, step.maxDim, step.quality);
+    lastBlob = blob;
+    if (blob.size <= MAX_IMAGE_BYTES) break;
+  }
+  return new File([lastBlob!], "image.jpg", { type: "image/jpeg" });
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1495,6 +1519,7 @@ function ProductsPanel() {
   const [imageFile,       setImageFile]       = useState<File | null>(null);
   const [imagePreview,    setImagePreview]    = useState("");
   const [imageError,      setImageError]      = useState("");
+  const [compressInfo,    setCompressInfo]    = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProducts = useCallback(async () => {
@@ -1526,6 +1551,7 @@ function ProductsPanel() {
     setImageFile(null);
     setImagePreview("");
     setImageError("");
+    setCompressInfo("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -1571,15 +1597,17 @@ function ProductsPanel() {
     if (!file) return;
     if (file.size > 30 * 1024 * 1024) { setImageError("حجم الصورة يجب أن لا يتجاوز 30 ميغابايت"); e.target.value = ""; return; }
     setImageError("");
+    setCompressInfo("");
     try {
       const compressed = await compressImage(file);
-      if (compressed.size > BUCKET_IMAGE_SIZE_LIMIT) {
-        setImageError("تعذر ضغط الصورة إلى الحجم المطلوب (أقل من 5 ميغابايت)، جرّب صورة أخرى");
+      if (compressed.size > MAX_IMAGE_BYTES) {
+        setImageError("تعذر ضغط الصورة إلى أقل من 1 ميغابايت، جرّب صورة أخرى");
         e.target.value = "";
         return;
       }
       setImageFile(compressed);
       setImagePreview(URL.createObjectURL(compressed));
+      setCompressInfo(`تم ضغط الصورة إلى ${Math.round(compressed.size / 1024)} KB`);
     } catch {
       setImageError("تعذر معالجة الصورة، جرّب صورة أخرى");
       e.target.value = "";
@@ -1707,6 +1735,7 @@ function ProductsPanel() {
             />
           </div>
           {imageError && <p className="text-xs" style={{ color: "#DC2626" }}>{imageError}</p>}
+          {!imageError && compressInfo && <p className="text-xs" style={{ color: "#16A34A" }}>{compressInfo}</p>}
         </div>
       </div>
 
@@ -3029,6 +3058,7 @@ function CombosPanel() {
   const [imageFile,       setImageFile]       = useState<File | null>(null);
   const [imagePreview,    setImagePreview]    = useState("");
   const [imageError,      setImageError]      = useState("");
+  const [compressInfo,    setCompressInfo]    = useState("");
   const [uploading,       setUploading]       = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -3069,7 +3099,7 @@ function CombosPanel() {
 
   // ── Image helpers ───────────────────────────────────────────
   const resetImage = () => {
-    setImageFile(null); setImagePreview(""); setImageError("");
+    setImageFile(null); setImagePreview(""); setImageError(""); setCompressInfo("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3077,15 +3107,17 @@ function CombosPanel() {
     if (!file) return;
     if (file.size > 30 * 1024 * 1024) { setImageError("حجم الصورة يجب أن لا يتجاوز 30 ميغابايت"); e.target.value = ""; return; }
     setImageError("");
+    setCompressInfo("");
     try {
       const compressed = await compressImage(file);
-      if (compressed.size > BUCKET_IMAGE_SIZE_LIMIT) {
-        setImageError("تعذر ضغط الصورة إلى الحجم المطلوب (أقل من 5 ميغابايت)، جرّب صورة أخرى");
+      if (compressed.size > MAX_IMAGE_BYTES) {
+        setImageError("تعذر ضغط الصورة إلى أقل من 1 ميغابايت، جرّب صورة أخرى");
         e.target.value = "";
         return;
       }
       setImageFile(compressed);
       setImagePreview(URL.createObjectURL(compressed));
+      setCompressInfo(`تم ضغط الصورة إلى ${Math.round(compressed.size / 1024)} KB`);
     } catch {
       setImageError("تعذر معالجة الصورة، جرّب صورة أخرى");
       e.target.value = "";
@@ -3313,6 +3345,7 @@ function CombosPanel() {
             {imagePreview && <span className="text-xs font-bold px-2 py-0.5 rounded-md" style={{ background: "#DCFCE7", color: "#16A34A" }}>جديدة ✓</span>}
           </div>
           {imageError && <p className="text-xs" style={{ color: "#DC2626" }}>{imageError}</p>}
+          {!imageError && compressInfo && <p className="text-xs" style={{ color: "#16A34A" }}>{compressInfo}</p>}
         </div>
       </div>
 
