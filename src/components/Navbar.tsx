@@ -83,7 +83,7 @@ export default function Navbar({ variant = "dark" }: { variant?: "dark" | "light
     ? [
         { href: "/",        label: "القائمة" },
         { href: "/offers",  label: "العروض"  },
-        { href: "/family-offers",  label: "العروض العائلية"   },
+        { href: "/family-offers",  label: " والرولاتالعروض العائلية"   },
       ]
     : [
         { href: "/",     label: "القائمة" },
