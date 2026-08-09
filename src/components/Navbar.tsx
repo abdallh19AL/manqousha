@@ -83,7 +83,7 @@ export default function Navbar({ variant = "dark" }: { variant?: "dark" | "light
     ? [
         { href: "/",        label: "القائمة" },
         { href: "/offers",  label: "العروض"  },
-        { href: "/family-offers",  label: " والرولاتالعروض العائلية"   },
+        { href: "/family-offers",  label: "العروض العائلية والرولات"   },
       ]
     : [
         { href: "/",     label: "القائمة" },
@@ -93,7 +93,7 @@ export default function Navbar({ variant = "dark" }: { variant?: "dark" | "light
   const mobileLinks = [
     { href: "/",       label: "القائمة", icon: "🍽️" },
     { href: "/offers", label: "العروض",  icon: "🔥" },
-    { href: "/family-offers", label: " والرولاتالعروض العائلية",   icon: "🍕" },
+    { href: "/family-offers", label: "العروض العائلية والرولات",   icon: "🍕" },
     { href: "/cart",   label: "سلتي",    icon: "🛒" },
   ];
 
