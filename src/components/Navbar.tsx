@@ -82,8 +82,8 @@ export default function Navbar({ variant = "dark" }: { variant?: "dark" | "light
   const navLinks = isLight
     ? [
         { href: "/",        label: "القائمة" },
-        { href: "/offers",  label: "العروض"  },
-        { href: "/family-offers",  label: "العروض العائلية والرولات"   },
+        { href: "/offers",  label: "العروض و وجبات الرولات"  },
+        { href: "/family-offers",  label: "العروض العائلية"   },
       ]
     : [
         { href: "/",     label: "القائمة" },
@@ -92,8 +92,8 @@ export default function Navbar({ variant = "dark" }: { variant?: "dark" | "light
 
   const mobileLinks = [
     { href: "/",       label: "القائمة", icon: "🍽️" },
-    { href: "/offers", label: "العروض",  icon: "🔥" },
-    { href: "/family-offers", label: "العروض العائلية والرولات",   icon: "🍕" },
+    { href: "/offers", label: "العروض و وجبات الرولات",  icon: "🔥" },
+    { href: "/family-offers", label: "العروض العائلية",   icon: "🍕" },
     { href: "/cart",   label: "سلتي",    icon: "🛒" },
   ];
 
