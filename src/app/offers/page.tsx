@@ -109,7 +109,7 @@ export default function OffersPage() {
             className="font-black mb-2"
             style={{ fontSize: "clamp(1.8rem, 5vw, 2.8rem)" }}
           >
-            <span style={{ color: C.text }}>العروض و وجبات الرولات </span>
+            <span style={{ color: C.text }}>العروض و الوجبات </span>
             <span
               style={{
                 background: `linear-gradient(135deg, ${C.primary}, ${C.gold})`,

@@ -102,7 +102,7 @@ export default function Footer({ variant = "dark" }: { variant?: "dark" | "light
             <ul className="space-y-2.5">
               {[
                 { href: "/",       label: "القائمة" },
-                { href: "/offers", label: "العروض و وجبات الرولات"  },
+                { href: "/offers", label: "العروض والوجبات"  },
                 { href: "/cart",   label: "سلتي"    },
               ].map(({ href, label }) => (
                 <li key={href}>
