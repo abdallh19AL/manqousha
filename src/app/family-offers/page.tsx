@@ -379,7 +379,7 @@ export default function FamilyOffersPage() {
             🍕 عروض البيتزا
           </span>
           <h1 className="text-3xl font-black mb-2" style={{ color: C.text }}>
-            العروض العائلية
+           العروض العائلية والرولات
           </h1>
           <p className="text-sm" style={{ color: C.muted }}>
             اختر عرضك المفضل وخصص بيتزاتك

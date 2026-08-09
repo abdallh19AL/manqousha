@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, Banknote, Bell, CheckCircle2, ChevronDown, ChevronUp,
-  CreditCard, FileText, ImagePlus, Loader2, Pencil, Phone, Printer,
+  Copy, CreditCard, FileText, ImagePlus, Loader2, Package, Pencil, Phone, Printer,
   PauseCircle, PlayCircle, Search, ShieldOff, Trash2, Utensils, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -3037,6 +3037,7 @@ function AnnouncementsPanel() {
 interface ComboForm  { name: string; description: string; price: string; sort_order: string; is_active: boolean; image_url: string; }
 interface StepForm   { title: string; step_order: string; min_select: string; max_select: string; step_type: string; }
 interface OptionForm { label: string; extra_cost: string; }
+interface PickerProduct { id: string; name: string; category: string; price: number; emoji: string | null; }
 
 const BLANK_COMBO_FORM:  ComboForm  = { name: "", description: "", price: "", sort_order: "0", is_active: true,  image_url: "" };
 const BLANK_STEP_FORM:   StepForm   = { title: "", step_order: "1", min_select: "1", max_select: "1", step_type: "pizza" };
@@ -3068,6 +3069,7 @@ function CombosPanel() {
   const [editStepForm,    setEditStepForm]    = useState<StepForm>(BLANK_STEP_FORM);
   const [deleteStepId,    setDeleteStepId]    = useState<string | null>(null);
   const [savingStep,      setSavingStep]      = useState(false);
+  const [busyStepId,      setBusyStepId]      = useState<string | null>(null); // reordering/duplicating
 
   // Option-level editing (scoped to the open step)
   const [editingOptionId,  setEditingOptionId]  = useState<string | null>(null);
@@ -3075,6 +3077,13 @@ function CombosPanel() {
   const [editOptionForm,   setEditOptionForm]   = useState<OptionForm>(BLANK_OPTION_FORM);
   const [deleteOptionId,   setDeleteOptionId]   = useState<string | null>(null);
   const [savingOption,     setSavingOption]     = useState(false);
+
+  // Product picker (scoped to the open step)
+  const [allProducts,      setAllProducts]      = useState<PickerProduct[]>([]);
+  const [pickerStepId,     setPickerStepId]     = useState<string | null>(null);
+  const [pickerSearch,     setPickerSearch]     = useState("");
+  const [pickerSelected,   setPickerSelected]   = useState<Set<string>>(new Set());
+  const [addingProducts,   setAddingProducts]   = useState(false);
 
   // ── Fetch ──────────────────────────────────────────────────
   const fetchCombos = useCallback(async () => {
@@ -3096,6 +3105,33 @@ function CombosPanel() {
   }, []);
 
   useEffect(() => { fetchCombos(); }, [fetchCombos]);
+
+  useEffect(() => {
+    supabase
+      .from("products")
+      .select("id, name, category, price, emoji")
+      .eq("available", true)
+      .order("category")
+      .order("name")
+      .then(({ data }) => { if (data) setAllProducts(data as PickerProduct[]); });
+  }, []);
+
+  const productGroups = useMemo(() => {
+    const groups: Record<string, PickerProduct[]> = {};
+    for (const p of allProducts) {
+      if (!groups[p.category]) groups[p.category] = [];
+      groups[p.category].push(p);
+    }
+    return Object.entries(groups);
+  }, [allProducts]);
+
+  const filteredProductGroups = useMemo(() => {
+    const q = pickerSearch.trim();
+    if (!q) return productGroups;
+    return productGroups
+      .map(([cat, prods]) => [cat, prods.filter((p) => p.name.includes(q) || p.category.includes(q))] as [string, PickerProduct[]])
+      .filter(([, prods]) => prods.length > 0);
+  }, [productGroups, pickerSearch]);
 
   // ── Image helpers ───────────────────────────────────────────
   const resetImage = () => {
@@ -3201,7 +3237,15 @@ function CombosPanel() {
     setEditStepForm({ title: s.title, step_order: s.step_order.toString(), min_select: s.min_select.toString(), max_select: s.max_select.toString(), step_type: s.step_type });
     setAddingStepFor(null);
   };
-  const openAddStep = (comboId: string) => { setAddingStepFor(comboId); setEditStepForm(BLANK_STEP_FORM); setEditingStepId(null); };
+  const openAddStep = (comboId: string) => {
+    const combo = combos.find((c) => c.id === comboId);
+    const nextOrder = combo && combo.combo_steps.length > 0
+      ? Math.max(...combo.combo_steps.map((s) => s.step_order)) + 1
+      : 1;
+    setAddingStepFor(comboId);
+    setEditStepForm({ ...BLANK_STEP_FORM, step_order: String(nextOrder) });
+    setEditingStepId(null);
+  };
   const cancelStep  = () => { setEditingStepId(null); setAddingStepFor(null); };
 
   const handleSaveStep = async (comboId: string, isNew: boolean) => {
@@ -3227,13 +3271,58 @@ function CombosPanel() {
     setDeleteStepId(null); fetchCombos();
   };
 
+  const moveStep = async (combo: ComboLocal, stepId: string, direction: "up" | "down") => {
+    const sorted = [...combo.combo_steps].sort((a, b) => a.step_order - b.step_order);
+    const idx = sorted.findIndex((s) => s.id === stepId);
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (idx === -1 || swapIdx < 0 || swapIdx >= sorted.length) return;
+    const a = sorted[idx];
+    const b = sorted[swapIdx];
+    setBusyStepId(stepId);
+    await Promise.all([
+      supabase.from("combo_steps").update({ step_order: b.step_order }).eq("id", a.id),
+      supabase.from("combo_steps").update({ step_order: a.step_order }).eq("id", b.id),
+    ]);
+    setBusyStepId(null);
+    fetchCombos();
+  };
+
+  const handleDuplicateStep = async (combo: ComboLocal, step: ComboLocal["combo_steps"][number]) => {
+    setBusyStepId(step.id);
+    const nextOrder = Math.max(...combo.combo_steps.map((s) => s.step_order)) + 1;
+    const { data, error } = await supabase
+      .from("combo_steps")
+      .insert({
+        combo_id:   combo.id,
+        title:      step.title,
+        step_order: nextOrder,
+        min_select: step.min_select,
+        max_select: step.max_select,
+        step_type:  step.step_type,
+      })
+      .select("id")
+      .single();
+    if (!error && data && step.combo_step_options.length > 0) {
+      const newStepId = (data as { id: string }).id;
+      await supabase.from("combo_step_options").insert(
+        step.combo_step_options.map((opt) => ({
+          step_id:    newStepId,
+          label:      opt.label,
+          extra_cost: opt.extra_cost,
+        }))
+      );
+    }
+    setBusyStepId(null);
+    fetchCombos();
+  };
+
   // ── Option CRUD ─────────────────────────────────────────────
   const openEditOption = (o: ComboStepOption) => {
     setEditingOptionId(o.id);
     setEditOptionForm({ label: o.label, extra_cost: o.extra_cost.toString() });
     setAddingOptionFor(null);
   };
-  const openAddOption = (stepId: string) => { setAddingOptionFor(stepId); setEditOptionForm(BLANK_OPTION_FORM); setEditingOptionId(null); };
+  const openAddOption = (stepId: string) => { setAddingOptionFor(stepId); setEditOptionForm(BLANK_OPTION_FORM); setEditingOptionId(null); closeProductPicker(); };
   const cancelOption  = () => { setEditingOptionId(null); setAddingOptionFor(null); };
 
   const handleSaveOption = async (stepId: string, isNew: boolean) => {
@@ -3250,6 +3339,36 @@ function CombosPanel() {
   const handleDeleteOption = async (optId: string) => {
     await supabase.from("combo_step_options").delete().eq("id", optId);
     setDeleteOptionId(null); fetchCombos();
+  };
+
+  // ── Product picker ──────────────────────────────────────────
+  const openProductPicker = (stepId: string) => {
+    setPickerStepId(stepId);
+    setPickerSearch("");
+    setPickerSelected(new Set());
+    cancelOption();
+  };
+  const closeProductPicker = () => { setPickerStepId(null); setPickerSelected(new Set()); setPickerSearch(""); };
+
+  const toggleProductPick = (id: string) => {
+    setPickerSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleAddProductOptions = async (step: ComboLocal["combo_steps"][number]) => {
+    const existingLabels = new Set(step.combo_step_options.map((o) => o.label));
+    const toAdd = allProducts.filter((p) => pickerSelected.has(p.id) && !existingLabels.has(p.name));
+    if (toAdd.length === 0) { closeProductPicker(); return; }
+    setAddingProducts(true);
+    await supabase.from("combo_step_options").insert(
+      toAdd.map((p) => ({ step_id: step.id, label: p.name, extra_cost: 0 }))
+    );
+    setAddingProducts(false);
+    closeProductPicker();
+    fetchCombos();
   };
 
   // ── Render helpers ──────────────────────────────────────────
@@ -3316,6 +3435,79 @@ function CombosPanel() {
       <button onClick={cancelOption} className="text-xs px-2 py-1.5 rounded-lg mb-0.5" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}>✕</button>
     </div>
   );
+
+  const renderProductPicker = (step: ComboLocal["combo_steps"][number]) => {
+    const existingLabels = new Set(step.combo_step_options.map((o) => o.label));
+    return (
+      <div className="px-3 py-3 space-y-2" style={{ background: C.bg, borderTop: `1px solid ${C.border}` }}>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: C.faint }} />
+            <input
+              value={pickerSearch}
+              onChange={(e) => setPickerSearch(e.target.value)}
+              placeholder="ابحث عن منتج أو تصنيف..."
+              className={`${INPUT} pr-8`}
+            />
+          </div>
+          <button onClick={closeProductPicker} className="p-2 rounded-lg" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}>
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="max-h-64 overflow-y-auto rounded-lg" style={{ border: `1px solid ${C.border}` }}>
+          {filteredProductGroups.length === 0 ? (
+            <p className="text-xs text-center py-6" style={{ color: C.faint }}>لا توجد منتجات مطابقة</p>
+          ) : (
+            filteredProductGroups.map(([cat, prods]) => (
+              <div key={cat}>
+                <div className="px-3 py-1.5 text-xs font-black sticky top-0" style={{ background: `${C.gold}12`, color: C.gold, borderBottom: `1px solid ${C.border}` }}>
+                  {cat}
+                </div>
+                {prods.map((p) => {
+                  const already = existingLabels.has(p.name);
+                  const checked = already || pickerSelected.has(p.id);
+                  return (
+                    <label
+                      key={p.id}
+                      className="flex items-center gap-2 px-3 py-2 cursor-pointer"
+                      style={{ borderBottom: `1px solid ${C.border}`, opacity: already ? 0.55 : 1, background: "#fff" }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={already}
+                        onChange={() => toggleProductPick(p.id)}
+                        className="accent-orange-500 w-4 h-4 shrink-0"
+                      />
+                      <span className="shrink-0">{p.emoji ?? "🍽️"}</span>
+                      <span className="flex-1 text-xs font-bold truncate" style={{ color: C.text }}>{p.name}</span>
+                      <span className="text-xs shrink-0" style={{ color: C.faint }}>{p.price.toFixed(2)} د.أ</span>
+                      {already && <span className="text-xs font-bold shrink-0" style={{ color: "#16A34A" }}>✓ مضاف</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleAddProductOptions(step)}
+            disabled={addingProducts || pickerSelected.size === 0}
+            className="flex-1 text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50"
+            style={{ background: C.primary, color: "#fff" }}
+          >
+            {addingProducts ? "جارٍ الإضافة..." : `إضافة ${pickerSelected.size} خيار`}
+          </button>
+          <button onClick={closeProductPicker} className="text-xs px-3 py-2 rounded-lg" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}>
+            إلغاء
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const renderComboEditForm = (isNew: boolean) => (
     <form onSubmit={handleSaveCombo} className="px-4 py-4 space-y-4" style={{ background: C.bg, borderTop: `1px solid ${C.border}` }}>
@@ -3392,36 +3584,64 @@ function CombosPanel() {
       <p className="text-xs font-black pt-3 pb-2" style={{ color: C.muted }}>المراحل ({combo.combo_steps.length})</p>
 
       <div className="space-y-2">
-        {combo.combo_steps.map((step) => (
+        {combo.combo_steps.map((step, idx) => (
           <div key={step.id} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${editingStepId === step.id ? C.primary + "66" : C.border}` }}>
             {/* Step row */}
             {editingStepId === step.id ? renderStepForm(combo.id, false) : (
               <div className="flex items-center gap-2 px-3 py-2" style={{ background: C.surface }}>
                 <div className="flex-1 min-w-0">
-                  <span className="font-bold text-xs" style={{ color: C.text }}>{step.title}</span>
-                  <span className="mr-2 text-xs" style={{ color: C.faint }}>
-                    #{step.step_order} · {step.step_type} · {step.min_select === 0 ? "اختياري" : `min ${step.min_select}`}
-                  </span>
-                </div>
-                <button onClick={() => openEditStep(step)} className="p-1 rounded-lg transition-colors" style={{ color: C.faint }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; e.currentTarget.style.background = `${C.primary}12`; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                {deleteStepId === step.id ? (
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => handleDeleteStep(step.id)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ background: "#EF4444", color: "#fff" }}>حذف</button>
-                    <button onClick={() => setDeleteStepId(null)} className="text-xs px-2 py-1 rounded-lg" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}>لا</button>
+                  <div>
+                    <span className="font-bold text-xs" style={{ color: C.text }}>{step.title}</span>
+                    <span className="mr-2 text-xs" style={{ color: C.faint }}>
+                      #{step.step_order} · {step.step_type} · {step.min_select === 0 ? "اختياري" : `min ${step.min_select}`}
+                    </span>
                   </div>
-                ) : (
-                  <button onClick={() => setDeleteStepId(step.id)} className="p-1 rounded-lg transition-colors" style={{ color: C.faint }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = "#DC2626"; e.currentTarget.style.background = "#FFF5F5"; }}
+                  {step.combo_step_options.length === 0 && (
+                    <p className="text-xs font-bold mt-0.5" style={{ color: "#D97706" }}>⚠ لا توجد خيارات — أضف خيارًا واحدًا على الأقل</p>
+                  )}
+                </div>
+                <div className="flex items-center shrink-0" style={{ opacity: busyStepId === step.id ? 0.5 : 1, pointerEvents: busyStepId === step.id ? "none" : "auto" }}>
+                  <button onClick={() => moveStep(combo, step.id, "up")} disabled={idx === 0} className="p-1 rounded-lg transition-colors disabled:opacity-30" style={{ color: C.faint }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; e.currentTarget.style.background = `${C.primary}12`; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
+                    title="نقل لأعلى"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => moveStep(combo, step.id, "down")} disabled={idx === combo.combo_steps.length - 1} className="p-1 rounded-lg transition-colors disabled:opacity-30" style={{ color: C.faint }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; e.currentTarget.style.background = `${C.primary}12`; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
+                    title="نقل لأسفل"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => handleDuplicateStep(combo, step)} className="p-1 rounded-lg transition-colors" style={{ color: C.faint }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; e.currentTarget.style.background = `${C.primary}12`; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
+                    title="نسخ المرحلة"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => openEditStep(step)} className="p-1 rounded-lg transition-colors" style={{ color: C.faint }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; e.currentTarget.style.background = `${C.primary}12`; }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Pencil className="w-3.5 h-3.5" />
                   </button>
-                )}
+                  {deleteStepId === step.id ? (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleDeleteStep(step.id)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ background: "#EF4444", color: "#fff" }}>حذف</button>
+                      <button onClick={() => setDeleteStepId(null)} className="text-xs px-2 py-1 rounded-lg" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}>لا</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setDeleteStepId(step.id)} className="p-1 rounded-lg transition-colors" style={{ color: C.faint }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = "#DC2626"; e.currentTarget.style.background = "#FFF5F5"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -3460,19 +3680,33 @@ function CombosPanel() {
                 </div>
               ))}
 
-              {/* Add option form */}
+              {/* Add option form / product picker */}
               {addingOptionFor === step.id
                 ? renderOptionForm(step.id, true)
+                : pickerStepId === step.id
+                ? renderProductPicker(step)
                 : (
-                  <button
-                    onClick={() => openAddOption(step.id)}
-                    className="w-full text-xs font-bold px-3 py-1.5 text-right transition-colors"
-                    style={{ color: C.faint }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; e.currentTarget.style.background = `${C.primary}08`; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
-                  >
-                    + إضافة خيار
-                  </button>
+                  <div className="flex">
+                    <button
+                      onClick={() => openAddOption(step.id)}
+                      className="flex-1 text-xs font-bold px-3 py-1.5 text-right transition-colors"
+                      style={{ color: C.faint, borderLeft: `1px solid ${C.border}` }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; e.currentTarget.style.background = `${C.primary}08`; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
+                    >
+                      + إضافة خيار
+                    </button>
+                    <button
+                      onClick={() => openProductPicker(step.id)}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-1.5 transition-colors"
+                      style={{ color: C.faint }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; e.currentTarget.style.background = `${C.primary}08`; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = C.faint; e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                      اختر من المنتجات
+                    </button>
+                  </div>
                 )
               }
             </div>
@@ -3609,6 +3843,12 @@ function CombosPanel() {
               {/* Expanded: edit form + steps */}
               {editingComboId === combo.id && (
                 <>
+                  {combo.is_active && (combo.combo_steps.length === 0 || combo.combo_steps.some((s) => s.combo_step_options.length === 0)) && (
+                    <div className="px-4 py-2.5 text-xs font-bold" style={{ background: "#FFFBEB", borderTop: `1px solid #FDE68A`, color: "#B45309" }}>
+                      ⚠ هذا العرض نشط لكنه غير مكتمل ولن يظهر بشكل صحيح للعملاء
+                      {combo.combo_steps.length === 0 ? " — لا توجد مراحل بعد" : " — بعض المراحل بلا خيارات"}
+                    </div>
+                  )}
                   {renderComboEditForm(false)}
                   {renderStepsSection(combo)}
                 </>
