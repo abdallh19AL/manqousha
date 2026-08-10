@@ -116,6 +116,7 @@ export interface ComboDeal {
   price: number;
   image_url: string | null;
   is_active: boolean;
+  show_on_offers: boolean;
   sort_order: number;
   created_at: string;
 }

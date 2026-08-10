@@ -3034,12 +3034,12 @@ function AnnouncementsPanel() {
 /* ════════════════════════════════════════════════════════════
    Combos Panel
 ══════════════════════════════════════════════════════════════ */
-interface ComboForm  { name: string; description: string; price: string; sort_order: string; is_active: boolean; image_url: string; }
+interface ComboForm  { name: string; description: string; price: string; sort_order: string; is_active: boolean; show_on_offers: boolean; image_url: string; }
 interface StepForm   { title: string; step_order: string; min_select: string; max_select: string; step_type: string; }
 interface OptionForm { label: string; extra_cost: string; }
 interface PickerProduct { id: string; name: string; category: string; price: number; emoji: string | null; }
 
-const BLANK_COMBO_FORM:  ComboForm  = { name: "", description: "", price: "", sort_order: "0", is_active: true,  image_url: "" };
+const BLANK_COMBO_FORM:  ComboForm  = { name: "", description: "", price: "", sort_order: "0", is_active: true, show_on_offers: false, image_url: "" };
 const BLANK_STEP_FORM:   StepForm   = { title: "", step_order: "1", min_select: "1", max_select: "1", step_type: "pizza" };
 const BLANK_OPTION_FORM: OptionForm = { label: "", extra_cost: "0" };
 
@@ -3054,6 +3054,7 @@ function CombosPanel() {
   const [editComboForm,   setEditComboForm]   = useState<ComboForm>(BLANK_COMBO_FORM);
   const [deleteComboId,   setDeleteComboId]   = useState<string | null>(null);
   const [savingCombo,     setSavingCombo]     = useState(false);
+  const [comboSaveError,  setComboSaveError]  = useState<string | null>(null);
 
   // Image upload
   const [imageFile,       setImageFile]       = useState<File | null>(null);
@@ -3173,14 +3174,14 @@ function CombosPanel() {
   // ── Combo CRUD ──────────────────────────────────────────────
   const openNewCombo = () => {
     setEditingComboId("new"); setEditComboForm(BLANK_COMBO_FORM);
-    setDeleteComboId(null); resetImage();
+    setDeleteComboId(null); resetImage(); setComboSaveError(null);
     setEditingStepId(null); setAddingStepFor(null);
     setEditingOptionId(null); setAddingOptionFor(null);
   };
   const openEditCombo = (c: ComboLocal) => {
     setEditingComboId(c.id);
-    setEditComboForm({ name: c.name, description: c.description ?? "", price: c.price.toString(), sort_order: c.sort_order.toString(), is_active: c.is_active, image_url: c.image_url ?? "" });
-    setDeleteComboId(null); resetImage();
+    setEditComboForm({ name: c.name, description: c.description ?? "", price: c.price.toString(), sort_order: c.sort_order.toString(), is_active: c.is_active, show_on_offers: c.show_on_offers ?? false, image_url: c.image_url ?? "" });
+    setDeleteComboId(null); resetImage(); setComboSaveError(null);
     setEditingStepId(null); setAddingStepFor(null);
     setEditingOptionId(null); setAddingOptionFor(null);
   };
@@ -3189,6 +3190,7 @@ function CombosPanel() {
   const handleSaveCombo = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingCombo(true);
+    setComboSaveError(null);
     const isNew = editingComboId === "new";
     const payload = {
       name:        editComboForm.name.trim(),
@@ -3196,17 +3198,19 @@ function CombosPanel() {
       price:       parseFloat(editComboForm.price),
       sort_order:  parseInt(editComboForm.sort_order) || 0,
       is_active:   editComboForm.is_active,
+      show_on_offers: editComboForm.show_on_offers,
       image_url:   editComboForm.image_url.trim() || null,
     };
 
     let comboId: string;
     if (isNew) {
       const { data, error } = await supabase.from("combo_deals").insert(payload).select("id").single();
-      if (error || !data) { setSavingCombo(false); return; }
+      if (error || !data) { setComboSaveError(error?.message ?? "فشل إنشاء العرض"); setSavingCombo(false); return; }
       comboId = (data as { id: string }).id;
     } else {
       comboId = editingComboId!;
-      await supabase.from("combo_deals").update(payload).eq("id", comboId);
+      const { error } = await supabase.from("combo_deals").update(payload).eq("id", comboId);
+      if (error) { setComboSaveError(error.message); setSavingCombo(false); return; }
     }
 
     if (imageFile) {
@@ -3511,6 +3515,11 @@ function CombosPanel() {
 
   const renderComboEditForm = (isNew: boolean) => (
     <form onSubmit={handleSaveCombo} className="px-4 py-4 space-y-4" style={{ background: C.bg, borderTop: `1px solid ${C.border}` }}>
+      {comboSaveError && (
+        <div className="rounded-xl px-4 py-2.5 text-xs font-bold" style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", color: "#DC2626" }}>
+          فشل الحفظ: {comboSaveError}
+        </div>
+      )}
       {/* Image */}
       <div className="flex items-start gap-4">
         <div className="w-16 h-16 rounded-xl flex items-center justify-center text-3xl shrink-0 overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
@@ -3563,6 +3572,10 @@ function CombosPanel() {
       <label className="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" checked={editComboForm.is_active} onChange={(e) => setEditComboForm((p) => ({ ...p, is_active: e.target.checked }))} className="accent-orange-500 w-4 h-4" />
         <span className="text-sm" style={{ color: C.text }}>نشط (يظهر للعملاء)</span>
+      </label>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" checked={editComboForm.show_on_offers} onChange={(e) => setEditComboForm((p) => ({ ...p, show_on_offers: e.target.checked }))} className="accent-orange-500 w-4 h-4" />
+        <span className="text-sm" style={{ color: C.text }}>إظهار في صفحة العروض (يظهر أيضاً في صفحة العروض بجانب العروض العائلية)</span>
       </label>
 
       <div className="flex items-center gap-2 pt-1">

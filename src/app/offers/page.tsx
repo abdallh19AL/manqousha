@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { ComboCard, ComboModal } from "@/components/ComboDisplay";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
+import type { ComboDealWithSteps } from "@/types";
 
 const C = {
   bg:      "#FBF7F2",
@@ -41,6 +43,8 @@ export default function OffersPage() {
   const [userStreak,   setUserStreak]   = useState<number>(0);
   const [streakLoaded, setStreakLoaded] = useState(false);
   const [streakOfferEnabled, setStreakOfferEnabled] = useState(true);
+  const [bundleCombos, setBundleCombos] = useState<ComboDealWithSteps[]>([]);
+  const [activeCombo,  setActiveCombo]  = useState<ComboDealWithSteps | null>(null);
 
   useEffect(() => {
     if (!user) { setStreakLoaded(true); return; }
@@ -63,7 +67,7 @@ export default function OffersPage() {
   useEffect(() => {
     (async () => {
       const now = new Date().toISOString();
-      const [{ data }, { data: settingsData }] = await Promise.all([
+      const [{ data }, { data: settingsData }, { data: comboData, error: comboError }] = await Promise.all([
         supabase
           .from("product_offers")
           .select("id, offer_type, discount_percent, addon_description, expires_at, products(id, name, category, price, emoji, image_url)")
@@ -75,6 +79,12 @@ export default function OffersPage() {
           .select("streak_enabled")
           .eq("id", 1)
           .single(),
+        supabase
+          .from("combo_deals")
+          .select("*, combo_steps(*, combo_step_options(*))")
+          .eq("is_active", true)
+          .eq("show_on_offers", true)
+          .order("sort_order"),
       ]);
       const raw = (data as _OfferWithProduct[] | null) ?? [];
       const seen = new globalThis.Map<string, _OfferWithProduct>();
@@ -85,6 +95,20 @@ export default function OffersPage() {
       setOffers(Array.from(seen.values()));
       if (settingsData) {
         setStreakOfferEnabled(Boolean((settingsData as Record<string, unknown>).streak_enabled ?? true));
+      }
+      if (comboError) console.error("Failed to fetch bundle combos:", comboError);
+      if (comboData) {
+        setBundleCombos(
+          (comboData as ComboDealWithSteps[]).map((combo) => ({
+            ...combo,
+            combo_steps: combo.combo_steps
+              .sort((a, b) => a.step_order - b.step_order)
+              .map((step) => ({
+                ...step,
+                combo_step_options: step.combo_step_options ?? [],
+              })),
+          }))
+        );
       }
       setLoading(false);
     })();
@@ -158,6 +182,24 @@ export default function OffersPage() {
             ))}
           </div>
         ) : (
+          <>
+          {bundleCombos.length > 0 && (
+            <div className="mb-8">
+              <h2 className="font-black text-lg mb-4" style={{ color: C.text }}>
+                عروض الحزم
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {bundleCombos.map((combo) => (
+                  <ComboCard
+                    key={combo.id}
+                    combo={combo}
+                    onSelect={() => setActiveCombo(combo)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
             {/* Static streak loyalty offer card */}
             {streakOfferEnabled && (
@@ -332,10 +374,18 @@ export default function OffersPage() {
               </div>
             )}
           </div>
+          </>
         )}
       </div>
 
       <Footer variant="light" />
+
+      {activeCombo && (
+        <ComboModal
+          combo={activeCombo}
+          onClose={() => setActiveCombo(null)}
+        />
+      )}
     </main>
   );
 }
