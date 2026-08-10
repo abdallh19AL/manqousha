@@ -40,6 +40,7 @@ export default function OffersPage() {
   const { user } = useAuth();
   const [userStreak,   setUserStreak]   = useState<number>(0);
   const [streakLoaded, setStreakLoaded] = useState(false);
+  const [streakOfferEnabled, setStreakOfferEnabled] = useState(true);
 
   useEffect(() => {
     if (!user) { setStreakLoaded(true); return; }
@@ -62,12 +63,19 @@ export default function OffersPage() {
   useEffect(() => {
     (async () => {
       const now = new Date().toISOString();
-      const { data } = await supabase
-        .from("product_offers")
-        .select("id, offer_type, discount_percent, addon_description, expires_at, products(id, name, category, price, emoji, image_url)")
-        .eq("is_active", true)
-        .or(`expires_at.is.null,expires_at.gt.${now}`)
-        .order("created_at", { ascending: false });
+      const [{ data }, { data: settingsData }] = await Promise.all([
+        supabase
+          .from("product_offers")
+          .select("id, offer_type, discount_percent, addon_description, expires_at, products(id, name, category, price, emoji, image_url)")
+          .eq("is_active", true)
+          .or(`expires_at.is.null,expires_at.gt.${now}`)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("store_settings")
+          .select("streak_enabled")
+          .eq("id", 1)
+          .single(),
+      ]);
       const raw = (data as _OfferWithProduct[] | null) ?? [];
       const seen = new globalThis.Map<string, _OfferWithProduct>();
       for (const offer of raw) {
@@ -75,6 +83,9 @@ export default function OffersPage() {
         if (pid && !seen.has(pid)) seen.set(pid, offer);
       }
       setOffers(Array.from(seen.values()));
+      if (settingsData) {
+        setStreakOfferEnabled(Boolean((settingsData as Record<string, unknown>).streak_enabled ?? true));
+      }
       setLoading(false);
     })();
   }, []);
@@ -149,78 +160,80 @@ export default function OffersPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
             {/* Static streak loyalty offer card */}
-            <div
-              className="col-span-full rounded-2xl overflow-hidden"
-              style={{ border: `2px solid ${C.primary}`, background: "#FFF8F5" }}
-            >
+            {streakOfferEnabled && (
               <div
-                className="px-4 py-2"
-                style={{ background: `linear-gradient(135deg, ${C.primary}, ${C.gold})` }}
+                className="col-span-full rounded-2xl overflow-hidden"
+                style={{ border: `2px solid ${C.primary}`, background: "#FFF8F5" }}
               >
-                <span className="text-xs font-black text-white">🔥 عرض الولاء</span>
-              </div>
-              <div className="p-4 text-center">
-                <div className="text-4xl mb-2">🚚</div>
-                <h3 className="font-black text-lg mb-1" style={{ color: C.text }}>
-                  توصيل مجاني للطلب الخامس
-                </h3>
-                <p className="text-sm mb-3" style={{ color: C.muted }}>
-                  أكمل 4 طلبات خلال 30 يوماً واحصل على توصيل مجاني في طلبك الخامس تلقائياً
-                </p>
-                {!user && streakLoaded ? (
-                  <div className="text-center py-4">
-                    <p className="text-sm font-bold mb-3" style={{ color: C.muted }}>
-                      سجل دخولك للاستفادة من هذا العرض وتتبع تقدمك
-                    </p>
-                    <a
-                      href="/login"
-                      className="inline-block font-black px-6 py-2.5 rounded-xl text-sm"
-                      style={{ background: C.primary, color: "#fff" }}
-                    >
-                      تسجيل الدخول
-                    </a>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex justify-center gap-2 flex-wrap">
-                      {[1, 2, 3, 4].map((n) => (
-                        <div
-                          key={n}
-                          className="w-10 h-10 rounded-full flex items-center justify-center font-black text-sm"
-                          style={{
-                            background: userStreak >= n ? "#22C55E" : C.primary,
-                            color: "#fff",
-                            opacity: userStreak >= n ? 1 : 0.4,
-                          }}
-                        >
-                          {userStreak >= n ? "✓" : n}
-                        </div>
-                      ))}
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border-2"
-                        style={{ borderColor: C.primary, color: C.primary, background: "#fff" }}
+                <div
+                  className="px-4 py-2"
+                  style={{ background: `linear-gradient(135deg, ${C.primary}, ${C.gold})` }}
+                >
+                  <span className="text-xs font-black text-white">🔥 عرض الولاء</span>
+                </div>
+                <div className="p-4 text-center">
+                  <div className="text-4xl mb-2">🚚</div>
+                  <h3 className="font-black text-lg mb-1" style={{ color: C.text }}>
+                    توصيل مجاني للطلب الخامس
+                  </h3>
+                  <p className="text-sm mb-3" style={{ color: C.muted }}>
+                    أكمل 4 طلبات خلال 30 يوماً واحصل على توصيل مجاني في طلبك الخامس تلقائياً
+                  </p>
+                  {!user && streakLoaded ? (
+                    <div className="text-center py-4">
+                      <p className="text-sm font-bold mb-3" style={{ color: C.muted }}>
+                        سجل دخولك للاستفادة من هذا العرض وتتبع تقدمك
+                      </p>
+                      <a
+                        href="/login"
+                        className="inline-block font-black px-6 py-2.5 rounded-xl text-sm"
+                        style={{ background: C.primary, color: "#fff" }}
                       >
-                        🎁
-                      </div>
+                        تسجيل الدخول
+                      </a>
                     </div>
-
-                    {user && streakLoaded && (
-                      <div className="mt-3 px-3 py-2 rounded-xl" style={{ background: `${C.primary}12` }}>
-                        {userStreak >= 4 ? (
-                          <p className="text-sm font-black" style={{ color: "#22C55E" }}>
-                            🎉 طلبك القادم فيه توصيل مجاني!
-                          </p>
-                        ) : (
-                          <p className="text-sm font-bold" style={{ color: C.primary }}>
-                            باقي لك {4 - userStreak} طلب{4 - userStreak === 1 ? "" : "ات"} للتوصيل المجاني
-                          </p>
-                        )}
+                  ) : (
+                    <>
+                      <div className="flex justify-center gap-2 flex-wrap">
+                        {[1, 2, 3, 4].map((n) => (
+                          <div
+                            key={n}
+                            className="w-10 h-10 rounded-full flex items-center justify-center font-black text-sm"
+                            style={{
+                              background: userStreak >= n ? "#22C55E" : C.primary,
+                              color: "#fff",
+                              opacity: userStreak >= n ? 1 : 0.4,
+                            }}
+                          >
+                            {userStreak >= n ? "✓" : n}
+                          </div>
+                        ))}
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border-2"
+                          style={{ borderColor: C.primary, color: C.primary, background: "#fff" }}
+                        >
+                          🎁
+                        </div>
                       </div>
-                    )}
-                  </>
-                )}
+
+                      {user && streakLoaded && (
+                        <div className="mt-3 px-3 py-2 rounded-xl" style={{ background: `${C.primary}12` }}>
+                          {userStreak >= 4 ? (
+                            <p className="text-sm font-black" style={{ color: "#22C55E" }}>
+                              🎉 طلبك القادم فيه توصيل مجاني!
+                            </p>
+                          ) : (
+                            <p className="text-sm font-bold" style={{ color: C.primary }}>
+                              باقي لك {4 - userStreak} طلب{4 - userStreak === 1 ? "" : "ات"} للتوصيل المجاني
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {offers.length > 0 ? offers.map((offer) => {
               const prod = offer.products;
