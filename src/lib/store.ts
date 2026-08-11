@@ -2,17 +2,21 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { CartItem, ComboCartItem, Product } from "@/types";
+import type { CartItem, ComboCartItem, Product, SimpleOfferCartItem } from "@/types";
 
 interface CartStore {
   items: CartItem[];
   comboItems: ComboCartItem[];
+  simpleOfferItems: SimpleOfferCartItem[];
   addItem: (product: Product, selectedSize?: { label: string; price: number }, doughType?: { label: string; extra: number }, addons?: { label: string; extra: number }[]) => void;
   removeItem: (cartKey: string) => void;
   updateQuantity: (cartKey: string, quantity: number) => void;
   addComboItem: (item: ComboCartItem) => void;
   removeComboItem: (cartKey: string) => void;
   updateComboQuantity: (cartKey: string, quantity: number) => void;
+  addSimpleOfferItem: (item: SimpleOfferCartItem) => void;
+  removeSimpleOfferItem: (cartKey: string) => void;
+  updateSimpleOfferQuantity: (cartKey: string, quantity: number) => void;
   clearCart: () => void;
   getTotal: () => number;
   getItemCount: () => number;
@@ -23,6 +27,7 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
       comboItems: [],
+      simpleOfferItems: [],
 
       addItem: (product, selectedSize, doughType, addons) => {
         const addonsKey = (addons ?? []).map((a) => a.label).sort().join(",");
@@ -75,7 +80,29 @@ export const useCartStore = create<CartStore>()(
         set({ comboItems: get().comboItems.map((c) => c.cartKey === cartKey ? { ...c, quantity } : c) });
       },
 
-      clearCart: () => set({ items: [], comboItems: [] }),
+      addSimpleOfferItem: (item) => {
+        const existing = get().simpleOfferItems.find((o) => o.cartKey === item.cartKey);
+        if (existing) {
+          set({
+            simpleOfferItems: get().simpleOfferItems.map((o) =>
+              o.cartKey === item.cartKey ? { ...o, quantity: o.quantity + 1 } : o
+            ),
+          });
+        } else {
+          set({ simpleOfferItems: [...get().simpleOfferItems, item] });
+        }
+      },
+
+      removeSimpleOfferItem: (cartKey) => {
+        set({ simpleOfferItems: get().simpleOfferItems.filter((o) => o.cartKey !== cartKey) });
+      },
+
+      updateSimpleOfferQuantity: (cartKey, quantity) => {
+        if (quantity <= 0) { get().removeSimpleOfferItem(cartKey); return; }
+        set({ simpleOfferItems: get().simpleOfferItems.map((o) => o.cartKey === cartKey ? { ...o, quantity } : o) });
+      },
+
+      clearCart: () => set({ items: [], comboItems: [], simpleOfferItems: [] }),
 
       getTotal: () => {
         const itemsTotal = get().items.reduce((sum, i) => {
@@ -86,21 +113,24 @@ export const useCartStore = create<CartStore>()(
           const extrasTotal = c.selections.reduce((s, sel) => s + sel.extraCost, 0);
           return sum + (c.basePrice + extrasTotal) * c.quantity;
         }, 0);
-        return itemsTotal + combosTotal;
+        const simpleOffersTotal = get().simpleOfferItems.reduce((sum, o) => sum + o.price * o.quantity, 0);
+        return itemsTotal + combosTotal + simpleOffersTotal;
       },
 
       getItemCount: () => {
         const itemsCount  = get().items.reduce((sum, i) => sum + i.quantity, 0);
         const combosCount = get().comboItems.reduce((sum, c) => sum + c.quantity, 0);
-        return itemsCount + combosCount;
+        const simpleOffersCount = get().simpleOfferItems.reduce((sum, o) => sum + o.quantity, 0);
+        return itemsCount + combosCount + simpleOffersCount;
       },
     }),
     {
       name: "manqousha-cart",
-      version: 4,
+      version: 5,
       migrate: (_state, version) => {
-        if (version < 2) return { items: [], comboItems: [] };
-        return { ...(_state as { items: CartItem[] }), comboItems: (_state as { comboItems?: ComboCartItem[] }).comboItems ?? [] };
+        if (version < 2) return { items: [], comboItems: [], simpleOfferItems: [] };
+        const s = _state as { items: CartItem[]; comboItems?: ComboCartItem[]; simpleOfferItems?: SimpleOfferCartItem[] };
+        return { ...s, comboItems: s.comboItems ?? [], simpleOfferItems: s.simpleOfferItems ?? [] };
       },
     }
   )

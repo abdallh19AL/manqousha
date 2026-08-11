@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 import { ComboCard, ComboModal } from "@/components/ComboDisplay";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
+import { useCartStore } from "@/lib/store";
 import type { ComboDealWithSteps } from "@/types";
 
 const C = {
@@ -22,10 +23,13 @@ const C = {
 
 interface _OfferWithProduct {
   id: string;
-  offer_type: "price_discount" | "free_delivery" | "free_addon";
+  offer_type: "price_discount" | "free_delivery" | "free_addon" | "simple";
   discount_percent: number | null;
   addon_description: string | null;
   description: string | null;
+  name: string | null;
+  price: number | null;
+  image_url: string | null;
   expires_at: string | null;
   products: {
     id: string;
@@ -46,6 +50,7 @@ export default function OffersPage() {
   const [streakOfferEnabled, setStreakOfferEnabled] = useState(true);
   const [bundleCombos, setBundleCombos] = useState<ComboDealWithSteps[]>([]);
   const [activeCombo,  setActiveCombo]  = useState<ComboDealWithSteps | null>(null);
+  const addSimpleOfferItem = useCartStore((s) => s.addSimpleOfferItem);
 
   useEffect(() => {
     if (!user) { setStreakLoaded(true); return; }
@@ -71,7 +76,7 @@ export default function OffersPage() {
       const [{ data }, { data: settingsData }, { data: comboData, error: comboError }] = await Promise.all([
         supabase
           .from("product_offers")
-          .select("id, offer_type, discount_percent, addon_description, description, expires_at, products(id, name, category, price, emoji, image_url)")
+          .select("id, offer_type, discount_percent, addon_description, description, name, price, image_url, expires_at, products(id, name, category, price, emoji, image_url)")
           .eq("is_active", true)
           .or(`expires_at.is.null,expires_at.gt.${now}`)
           .order("created_at", { ascending: false }),
@@ -89,11 +94,13 @@ export default function OffersPage() {
       ]);
       const raw = (data as _OfferWithProduct[] | null) ?? [];
       const seen = new globalThis.Map<string, _OfferWithProduct>();
+      const simpleOffers: _OfferWithProduct[] = [];
       for (const offer of raw) {
+        if (offer.offer_type === "simple") { simpleOffers.push(offer); continue; }
         const pid = offer.products?.id;
         if (pid && !seen.has(pid)) seen.set(pid, offer);
       }
-      setOffers(Array.from(seen.values()));
+      setOffers([...simpleOffers, ...Array.from(seen.values())]);
       if (settingsData) {
         setStreakOfferEnabled(Boolean((settingsData as Record<string, unknown>).streak_enabled ?? true));
       }
@@ -279,6 +286,63 @@ export default function OffersPage() {
             )}
 
             {offers.length > 0 ? offers.map((offer) => {
+              if (offer.offer_type === "simple") {
+                return (
+                  <div
+                    key={offer.id}
+                    className="relative rounded-2xl overflow-hidden flex flex-col select-none"
+                    style={{ background: "#fff", border: `1.5px solid ${C.border}`, boxShadow: "0 2px 10px rgba(0,0,0,0.06)" }}
+                  >
+                    <div
+                      className="relative flex-shrink-0 flex items-center justify-center overflow-hidden"
+                      style={{ height: "144px", background: `linear-gradient(150deg, #FFF6E0, #FFF0CC)` }}
+                    >
+                      {offer.image_url ? (
+                        <img src={offer.image_url} alt={offer.name ?? ""} className="absolute inset-0 w-full h-full object-cover" />
+                      ) : (
+                        <span style={{ fontSize: "72px", lineHeight: "1", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.12))" }}>🎁</span>
+                      )}
+                      <span
+                        className="absolute top-2 left-2 text-xs font-black px-2 py-0.5 rounded-full z-10"
+                        style={{ background: C.gold, color: "#fff", boxShadow: "0 1px 6px rgba(0,0,0,0.18)" }}
+                      >
+                        عرض خاص
+                      </span>
+                    </div>
+                    <div className="p-3.5 flex flex-col flex-1">
+                      <h3 className="font-black text-sm leading-snug mb-1" style={{ color: C.text }}>
+                        {offer.name}
+                      </h3>
+                      {offer.description && (
+                        <p className="text-xs mb-2 leading-relaxed" style={{ color: C.muted }}>{offer.description}</p>
+                      )}
+                      <div className="mt-auto flex items-center justify-between gap-2">
+                        <div className="flex items-baseline gap-1 flex-wrap">
+                          <span className="font-black text-base leading-none" style={{ color: C.primary }}>
+                            {(offer.price ?? 0).toFixed(2)}
+                          </span>
+                          <span className="text-xs font-bold" style={{ color: C.faint }}>د.أ</span>
+                        </div>
+                        <button
+                          onClick={() => addSimpleOfferItem({
+                            offerId:   offer.id,
+                            offerName: offer.name ?? "عرض خاص",
+                            price:     offer.price ?? 0,
+                            quantity:  1,
+                            cartKey:   `simple:${offer.id}`,
+                          })}
+                          className="text-xs font-black px-2.5 py-1 rounded-xl shrink-0 transition-colors"
+                          style={{ background: `${C.primary}12`, color: C.primary }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = C.primary; e.currentTarget.style.color = "#fff"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = `${C.primary}12`; e.currentTarget.style.color = C.primary; }}
+                        >
+                          أضف للسلة
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
               const prod = offer.products;
               if (!prod) return null;
               const badge    = badgeStyle(offer.offer_type);

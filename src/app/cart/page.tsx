@@ -56,6 +56,7 @@ export default function CartPage() {
   const {
     items, removeItem, updateQuantity,
     comboItems, removeComboItem, updateComboQuantity,
+    simpleOfferItems, removeSimpleOfferItem, updateSimpleOfferQuantity,
     clearCart, getTotal,
   } = useCartStore();
 
@@ -229,7 +230,7 @@ export default function CartPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitAttempted(true);
-    if (!isFormValid || (items.length === 0 && comboItems.length === 0) || isStoreClosed) return;
+    if (!isFormValid || (items.length === 0 && comboItems.length === 0 && simpleOfferItems.length === 0) || isStoreClosed) return;
     setLoading(true);
     setSubmitError("");
     try {
@@ -300,7 +301,10 @@ export default function CartPage() {
             .join(" | ");
           return { order_id: order.id, product_id: null, product_name: selStr ? `${c.comboName} | ${selStr}` : c.comboName, quantity: c.quantity, price: c.basePrice + extrasTotal };
         });
-      const { error: itemsErr } = await supabase.from("order_items").insert([...regularRows, ...comboRows]);
+      const simpleOfferRows = simpleOfferItems.map((o) => ({
+          order_id: order.id, product_id: null, product_name: o.offerName, quantity: o.quantity, price: o.price,
+        }));
+      const { error: itemsErr } = await supabase.from("order_items").insert([...regularRows, ...comboRows, ...simpleOfferRows]);
 
       if (itemsErr) {
         console.error("[cart] order_items insert failed:", itemsErr);
@@ -471,7 +475,7 @@ export default function CartPage() {
   }
 
   /* ── Empty ───────────────────────────────────────────────────── */
-  if (items.length === 0 && comboItems.length === 0) {
+  if (items.length === 0 && comboItems.length === 0 && simpleOfferItems.length === 0) {
     return (
       <main className="min-h-screen flex flex-col page-with-decos" style={{ color: C.text }}>
         <PageDecorations />
@@ -664,6 +668,71 @@ export default function CartPage() {
               </div>
             );
           })}
+
+          {/* Simple offer items */}
+          {simpleOfferItems.map((offer) => (
+            <div
+              key={offer.cartKey}
+              className="flex items-center gap-3 py-3"
+              style={{ borderBottom: `1px solid ${C.border}` }}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span
+                    className="text-xs font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: "#E0E7FF", color: "#4338CA" }}
+                  >
+                    عرض خاص
+                  </span>
+                  <p className="font-bold text-sm leading-snug truncate" style={{ color: C.text }}>
+                    {offer.offerName}
+                  </p>
+                </div>
+                <p className="font-bold text-xs mt-0.5" style={{ color: C.gold }}>
+                  {offer.price.toFixed(2)} د.أ
+                </p>
+              </div>
+
+              {/* Qty */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => updateSimpleOfferQuantity(offer.cartKey, offer.quantity - 1)}
+                  className="w-7 h-7 rounded-lg font-bold flex items-center justify-center transition-all text-lg leading-none"
+                  style={{ background: "#FFF0EE", color: "#E84040", border: "1px solid #E8404033" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#FFE0DC")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#FFF0EE")}
+                >
+                  −
+                </button>
+                <span className="w-6 text-center font-black text-sm" style={{ color: C.text }}>
+                  {offer.quantity}
+                </span>
+                <button
+                  onClick={() => updateSimpleOfferQuantity(offer.cartKey, offer.quantity + 1)}
+                  className="w-7 h-7 rounded-lg font-bold flex items-center justify-center transition-all text-lg leading-none"
+                  style={{ background: `linear-gradient(135deg, ${C.primary}, ${C.gold})`, color: "#fff" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                >
+                  +
+                </button>
+              </div>
+
+              <span className="w-14 text-left font-black text-sm" style={{ color: C.text }}>
+                {(offer.price * offer.quantity).toFixed(2)}
+              </span>
+
+              <button
+                onClick={() => removeSimpleOfferItem(offer.cartKey)}
+                className="transition-colors p-1 text-lg leading-none"
+                style={{ color: C.faint }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#E84040")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = C.faint)}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
 
           {/* Subtotal row */}
           <div

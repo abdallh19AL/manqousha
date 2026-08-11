@@ -163,11 +163,23 @@ export interface ComboCartItem {
 
 export interface ProductOffer {
   id: string;
-  product_id: string;
-  offer_type: "price_discount" | "free_delivery" | "free_addon";
+  product_id: string | null;
+  offer_type: "price_discount" | "free_delivery" | "free_addon" | "simple";
   discount_percent: number | null;
   addon_description: string | null;
+  description: string | null;
+  name: string | null;
+  price: number | null;
+  image_url: string | null;
   is_active: boolean;
   expires_at: string | null;
   created_at: string;
+}
+
+export interface SimpleOfferCartItem {
+  offerId: string;
+  offerName: string;
+  price: number;
+  quantity: number;
+  cartKey: string;
 }

@@ -141,7 +141,7 @@ export default function HomePage() {
       if (data) {
         const map = new Map<string, ProductOffer>();
         for (const row of data as ProductOffer[]) {
-          map.set(row.product_id, row);
+          if (row.product_id) map.set(row.product_id, row);
         }
         setOffersMap(map);
       }

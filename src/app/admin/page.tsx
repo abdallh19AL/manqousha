@@ -2045,13 +2045,20 @@ function ProductsPanel() {
 ══════════════════════════════════════════════════════════════ */
 interface _OfferProduct { id: string; name: string; category: string; price: number; emoji: string | null; }
 interface _OfferRow {
-  id: string; product_id: string;
-  offer_type: "price_discount" | "free_delivery" | "free_addon";
+  id: string; product_id: string | null;
+  offer_type: "price_discount" | "free_delivery" | "free_addon" | "simple";
   discount_percent: number | null; addon_description: string | null; description: string | null;
+  name: string | null; price: number | null; image_url: string | null;
   is_active: boolean; expires_at: string | null;
 }
-const BLANK_OFFER: { offer_type: "price_discount" | "free_delivery" | "free_addon"; discount_percent: string; addon_description: string; description: string; expires_at: string } = {
-  offer_type: "price_discount", discount_percent: "", addon_description: "", description: "", expires_at: "",
+interface _OfferForm {
+  offer_type: "price_discount" | "free_delivery" | "free_addon" | "simple";
+  discount_percent: string; addon_description: string; description: string;
+  name: string; price: string; expires_at: string;
+}
+const BLANK_OFFER: _OfferForm = {
+  offer_type: "price_discount", discount_percent: "", addon_description: "", description: "",
+  name: "", price: "", expires_at: "",
 };
 
 function OffersPanel() {
@@ -2066,6 +2073,15 @@ function OffersPanel() {
   const [togglingId,    setTogglingId]    = useState<string | null>(null);
   const [deletingId,    setDeletingId]    = useState<string | null>(null);
   const [offerTab,      setOfferTab]      = useState<"add" | "list">("list");
+
+  // Simple-offer image upload
+  const [imageFile,    setImageFile]    = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [imageError,   setImageError]   = useState("");
+  const [compressInfo, setCompressInfo] = useState("");
+  const [uploading,    setUploading]    = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Note: requires streak_enabled and streak_count columns in store_settings
   const [streakEnabled, setStreakEnabled] = useState(true);
   const [streakCount,   setStreakCount]   = useState(4);
@@ -2084,7 +2100,7 @@ function OffersPanel() {
   const loadOffers = useCallback(async () => {
     const { data } = await supabase
       .from("product_offers")
-      .select("id, product_id, offer_type, discount_percent, addon_description, description, is_active, expires_at")
+      .select("id, product_id, offer_type, discount_percent, addon_description, description, name, price, image_url, is_active, expires_at")
       .order("created_at", { ascending: false });
     if (data) setOffers(data as _OfferRow[]);
     setOffersLoading(false);
@@ -2126,23 +2142,69 @@ function OffersPanel() {
     return acc;
   }, [filtered]);
 
-  const openForm = (id: string) => { setOpenFormId(id); setForm(BLANK_OFFER); };
-  const closeForm = () => setOpenFormId(null);
+  const resetImage = () => {
+    setImageFile(null); setImagePreview(""); setImageError(""); setCompressInfo("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 30 * 1024 * 1024) { setImageError("حجم الصورة يجب أن لا يتجاوز 30 ميغابايت"); e.target.value = ""; return; }
+    setImageError("");
+    setCompressInfo("");
+    try {
+      const compressed = await compressImage(file);
+      if (compressed.size > MAX_IMAGE_BYTES) {
+        setImageError("تعذر ضغط الصورة إلى أقل من 1 ميغابايت، جرّب صورة أخرى");
+        e.target.value = "";
+        return;
+      }
+      setImageFile(compressed);
+      setImagePreview(URL.createObjectURL(compressed));
+      setCompressInfo(`تم ضغط الصورة إلى ${Math.round(compressed.size / 1024)} KB`);
+    } catch {
+      setImageError("تعذر معالجة الصورة، جرّب صورة أخرى");
+      e.target.value = "";
+    }
+  };
+  const uploadOfferImage = async (offerId: string): Promise<string | null> => {
+    if (!imageFile) return null;
+    setUploading(true);
+    const ext  = imageFile.name.split(".").pop() ?? "jpg";
+    const path = `offer-${offerId}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("product-images").upload(path, imageFile, { cacheControl: "31536000" });
+    setUploading(false);
+    if (error) { setImageError(`فشل رفع الصورة: ${error.message}`); return null; }
+    return supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+  };
+
+  const SIMPLE_OFFER_ID = "__simple__";
+  const openForm = (id: string) => { setOpenFormId(id); setForm(BLANK_OFFER); resetImage(); };
+  const openSimpleForm = () => { setOpenFormId(SIMPLE_OFFER_ID); setForm({ ...BLANK_OFFER, offer_type: "simple" }); resetImage(); };
+  const closeForm = () => { setOpenFormId(null); resetImage(); };
 
   const saveOffer = async () => {
     if (!openFormId) return;
     if (form.offer_type === "price_discount" && !form.discount_percent) return;
     if (form.offer_type === "free_addon" && !form.addon_description.trim()) return;
+    if (form.offer_type === "simple" && (!form.name.trim() || !form.price)) return;
     setSaving(true);
-    await supabase.from("product_offers").insert({
-      product_id:        openFormId,
+    const { data, error } = await supabase.from("product_offers").insert({
+      product_id:        form.offer_type === "simple" ? null : openFormId,
       offer_type:        form.offer_type,
       discount_percent:  form.offer_type === "price_discount" ? Number(form.discount_percent) : null,
       addon_description: form.offer_type === "free_addon" ? form.addon_description.trim() : null,
       description:       form.description.trim() || null,
+      name:               form.offer_type === "simple" ? form.name.trim() : null,
+      price:              form.offer_type === "simple" ? Number(form.price) : null,
       is_active:         true,
       expires_at:        form.expires_at || null,
-    });
+    }).select("id").single();
+    if (error || !data) { setSaving(false); return; }
+    if (form.offer_type === "simple" && imageFile) {
+      const url = await uploadOfferImage(data.id);
+      if (url) await supabase.from("product_offers").update({ image_url: url }).eq("id", data.id);
+    }
     setSaving(false);
     closeForm();
     await loadOffers();
@@ -2167,7 +2229,7 @@ function OffersPanel() {
   const productOfferMap = useMemo(() => {
     const map = new Set<string>();
     for (const o of offers) {
-      if (o.is_active && !isExpired(o.expires_at)) {
+      if (o.product_id && o.is_active && !isExpired(o.expires_at)) {
         map.add(o.product_id);
       }
     }
@@ -2184,6 +2246,137 @@ function OffersPanel() {
     setStreakSaved(true);
     setTimeout(() => setStreakSaved(false), 2000);
   };
+
+  const renderOfferFormFields = () => (
+    <div className="px-5 pb-4 pt-2 space-y-3" style={{ background: `${C.primary}05` }}>
+      <div>
+        <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>نوع العرض</label>
+        <select
+          value={form.offer_type}
+          onChange={(e) => setForm((f) => ({ ...f, offer_type: e.target.value as typeof f.offer_type }))}
+          className="w-full px-3 py-2 text-sm rounded-xl outline-none"
+          style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
+        >
+          <option value="price_discount">خصم بالسعر</option>
+          <option value="free_delivery">توصيل مجاني</option>
+          <option value="free_addon">إضافة مجانية</option>
+          <option value="simple">عرض بسيط</option>
+        </select>
+      </div>
+      {form.offer_type === "price_discount" && (
+        <div>
+          <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>نسبة الخصم (%)</label>
+          <input
+            type="number" min={1} max={99}
+            value={form.discount_percent}
+            onChange={(e) => setForm((f) => ({ ...f, discount_percent: e.target.value }))}
+            placeholder="مثال: 20"
+            className="w-full px-3 py-2 text-sm rounded-xl outline-none"
+            style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
+          />
+        </div>
+      )}
+      {form.offer_type === "free_addon" && (
+        <div>
+          <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>وصف الإضافة المجانية</label>
+          <input
+            type="text"
+            value={form.addon_description}
+            onChange={(e) => setForm((f) => ({ ...f, addon_description: e.target.value }))}
+            placeholder="مثال: مشروب"
+            className="w-full px-3 py-2 text-sm rounded-xl outline-none"
+            style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
+          />
+        </div>
+      )}
+      {form.offer_type === "simple" && (
+        <>
+          <div>
+            <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>اسم العرض *</label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="مثال: عرض العيد"
+              className="w-full px-3 py-2 text-sm rounded-xl outline-none"
+              style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>السعر (د.أ) *</label>
+            <input
+              type="number" step="0.01" min="0" dir="ltr"
+              value={form.price}
+              onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+              className="w-full px-3 py-2 text-sm rounded-xl outline-none"
+              style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>صورة العرض</label>
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl shrink-0 overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                {imagePreview ? <img src={imagePreview} alt="" className="w-full h-full object-cover" /> : <span>🎁</span>}
+              </div>
+              <div className="flex-1 space-y-1">
+                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} className="hidden" />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                  style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
+                >
+                  {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+                  {imagePreview ? "تغيير الصورة" : "رفع صورة"}
+                </button>
+                {imageError && <p className="text-xs" style={{ color: "#DC2626" }}>{imageError}</p>}
+                {!imageError && compressInfo && <p className="text-xs" style={{ color: "#16A34A" }}>{compressInfo}</p>}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      <div>
+        <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>وصف العرض (اختياري)</label>
+        <textarea
+          value={form.description}
+          onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+          rows={2}
+          placeholder="مثال: خصم خاص لفترة محدودة على البيتزا الكبيرة"
+          className="w-full px-3 py-2 text-sm rounded-xl outline-none resize-none"
+          style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
+        />
+      </div>
+      <div>
+        <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>تاريخ الانتهاء (اختياري)</label>
+        <input
+          type="datetime-local"
+          value={form.expires_at}
+          onChange={(e) => setForm((f) => ({ ...f, expires_at: e.target.value }))}
+          className="w-full px-3 py-2 text-sm rounded-xl outline-none"
+          style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={saveOffer}
+          disabled={saving || uploading}
+          className="flex-1 py-2 text-sm font-black rounded-xl"
+          style={{ background: C.primary, color: "#fff", opacity: (saving || uploading) ? 0.6 : 1 }}
+        >
+          {saving || uploading ? "جارٍ الحفظ..." : "حفظ العرض"}
+        </button>
+        <button
+          onClick={closeForm}
+          className="px-4 py-2 text-sm font-bold rounded-xl"
+          style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
+        >
+          إلغاء
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -2258,6 +2451,30 @@ function OffersPanel() {
         </button>
       </div>
 
+      {/* Standalone simple offer (not tied to a product) */}
+      {offerTab === "add" && (
+      <div className="rounded-2xl overflow-hidden mb-4" style={{ border: `1px solid ${C.border}`, background: "#FFFFFF" }}>
+        <div className="px-5 py-4 flex items-center justify-between gap-3" style={{ borderBottom: openFormId === SIMPLE_OFFER_ID ? `1px solid ${C.border}` : "none" }}>
+          <div>
+            <h2 className="font-black text-base" style={{ color: C.text }}>عرض بسيط (غير مرتبط بمنتج)</h2>
+            <p className="text-xs mt-0.5" style={{ color: C.faint }}>عرض قائم بذاته له اسم وسعر وصورة خاصة به</p>
+          </div>
+          <button
+            onClick={() => openFormId === SIMPLE_OFFER_ID ? closeForm() : openSimpleForm()}
+            className="shrink-0 text-xs font-black px-3 py-1.5 rounded-xl transition-all"
+            style={{
+              background: openFormId === SIMPLE_OFFER_ID ? `${C.primary}15` : C.surface,
+              border: `1.5px solid ${openFormId === SIMPLE_OFFER_ID ? C.primary : C.border}`,
+              color: openFormId === SIMPLE_OFFER_ID ? C.primary : C.muted,
+            }}
+          >
+            {openFormId === SIMPLE_OFFER_ID ? "إغلاق" : "+ عرض بسيط جديد"}
+          </button>
+        </div>
+        {openFormId === SIMPLE_OFFER_ID && renderOfferFormFields()}
+      </div>
+      )}
+
       {/* Product list for adding offers */}
       {offerTab === "add" && (
       <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.border}`, background: "#FFFFFF" }}>
@@ -2317,87 +2534,7 @@ function OffersPanel() {
                         {openFormId === p.id ? "إغلاق" : "+ عرض"}
                       </button>
                     </div>
-                    {openFormId === p.id && (
-                      <div className="px-5 pb-4 pt-2 space-y-3" style={{ background: `${C.primary}05` }}>
-                        <div>
-                          <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>نوع العرض</label>
-                          <select
-                            value={form.offer_type}
-                            onChange={(e) => setForm((f) => ({ ...f, offer_type: e.target.value as typeof f.offer_type }))}
-                            className="w-full px-3 py-2 text-sm rounded-xl outline-none"
-                            style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
-                          >
-                            <option value="price_discount">خصم بالسعر</option>
-                            <option value="free_delivery">توصيل مجاني</option>
-                            <option value="free_addon">إضافة مجانية</option>
-                          </select>
-                        </div>
-                        {form.offer_type === "price_discount" && (
-                          <div>
-                            <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>نسبة الخصم (%)</label>
-                            <input
-                              type="number" min={1} max={99}
-                              value={form.discount_percent}
-                              onChange={(e) => setForm((f) => ({ ...f, discount_percent: e.target.value }))}
-                              placeholder="مثال: 20"
-                              className="w-full px-3 py-2 text-sm rounded-xl outline-none"
-                              style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
-                            />
-                          </div>
-                        )}
-                        {form.offer_type === "free_addon" && (
-                          <div>
-                            <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>وصف الإضافة المجانية</label>
-                            <input
-                              type="text"
-                              value={form.addon_description}
-                              onChange={(e) => setForm((f) => ({ ...f, addon_description: e.target.value }))}
-                              placeholder="مثال: مشروب"
-                              className="w-full px-3 py-2 text-sm rounded-xl outline-none"
-                              style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
-                            />
-                          </div>
-                        )}
-                        <div>
-                          <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>وصف العرض (اختياري)</label>
-                          <textarea
-                            value={form.description}
-                            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                            rows={2}
-                            placeholder="مثال: خصم خاص لفترة محدودة على البيتزا الكبيرة"
-                            className="w-full px-3 py-2 text-sm rounded-xl outline-none resize-none"
-                            style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>تاريخ الانتهاء (اختياري)</label>
-                          <input
-                            type="datetime-local"
-                            value={form.expires_at}
-                            onChange={(e) => setForm((f) => ({ ...f, expires_at: e.target.value }))}
-                            className="w-full px-3 py-2 text-sm rounded-xl outline-none"
-                            style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={saveOffer}
-                            disabled={saving}
-                            className="flex-1 py-2 text-sm font-black rounded-xl"
-                            style={{ background: C.primary, color: "#fff", opacity: saving ? 0.6 : 1 }}
-                          >
-                            {saving ? "جارٍ الحفظ..." : "حفظ العرض"}
-                          </button>
-                          <button
-                            onClick={closeForm}
-                            className="px-4 py-2 text-sm font-bold rounded-xl"
-                            style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.muted }}
-                          >
-                            إلغاء
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    {openFormId === p.id && renderOfferFormFields()}
                   </div>
                 ))}
               </div>
@@ -2420,7 +2557,7 @@ function OffersPanel() {
         ) : (
           <div>
             {offers.map((offer) => {
-              const prod    = prodMap[offer.product_id];
+              const prod    = offer.product_id ? prodMap[offer.product_id] : null;
               const expired = isExpired(offer.expires_at);
               return (
                 <div
@@ -2428,6 +2565,11 @@ function OffersPanel() {
                   className="px-5 py-3.5 flex items-center gap-3"
                   style={{ borderBottom: `1px solid ${C.border}`, opacity: expired ? 0.6 : 1 }}
                 >
+                  {offer.offer_type === "simple" && (
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg shrink-0 overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                      {offer.image_url ? <img src={offer.image_url} alt="" className="w-full h-full object-cover" /> : <span>🎁</span>}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       {/* Status dot */}
@@ -2437,18 +2579,20 @@ function OffersPanel() {
                           background: expired ? "#EF4444" : offer.is_active ? "#22C55E" : "#D1D5DB",
                         }}
                       />
-                      <span className="font-bold text-sm" style={{ color: C.text }}>{prod?.name ?? "منتج"}</span>
+                      <span className="font-bold text-sm" style={{ color: C.text }}>{offer.offer_type === "simple" ? offer.name : (prod?.name ?? "منتج")}</span>
                       <span
                         className="text-xs font-black px-2 py-0.5 rounded-full"
                         style={{
-                          background: offer.offer_type === "price_discount" ? "#FEE2E2" : offer.offer_type === "free_delivery" ? "#DCFCE7" : `${C.gold}20`,
-                          color: offer.offer_type === "price_discount" ? "#EF4444" : offer.offer_type === "free_delivery" ? "#16A34A" : C.gold,
+                          background: offer.offer_type === "price_discount" ? "#FEE2E2" : offer.offer_type === "free_delivery" ? "#DCFCE7" : offer.offer_type === "simple" ? "#E0E7FF" : `${C.gold}20`,
+                          color: offer.offer_type === "price_discount" ? "#EF4444" : offer.offer_type === "free_delivery" ? "#16A34A" : offer.offer_type === "simple" ? "#4338CA" : C.gold,
                         }}
                       >
                         {offer.offer_type === "price_discount"
                           ? `خصم ${offer.discount_percent}%`
                           : offer.offer_type === "free_delivery"
                           ? "توصيل مجاني"
+                          : offer.offer_type === "simple"
+                          ? `عرض بسيط · ${(offer.price ?? 0).toFixed(2)} د.أ`
                           : `${offer.addon_description} مجاناً`}
                       </span>
                       {expired && (
