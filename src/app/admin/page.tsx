@@ -2047,11 +2047,11 @@ interface _OfferProduct { id: string; name: string; category: string; price: num
 interface _OfferRow {
   id: string; product_id: string;
   offer_type: "price_discount" | "free_delivery" | "free_addon";
-  discount_percent: number | null; addon_description: string | null;
+  discount_percent: number | null; addon_description: string | null; description: string | null;
   is_active: boolean; expires_at: string | null;
 }
-const BLANK_OFFER: { offer_type: "price_discount" | "free_delivery" | "free_addon"; discount_percent: string; addon_description: string; expires_at: string } = {
-  offer_type: "price_discount", discount_percent: "", addon_description: "", expires_at: "",
+const BLANK_OFFER: { offer_type: "price_discount" | "free_delivery" | "free_addon"; discount_percent: string; addon_description: string; description: string; expires_at: string } = {
+  offer_type: "price_discount", discount_percent: "", addon_description: "", description: "", expires_at: "",
 };
 
 function OffersPanel() {
@@ -2084,7 +2084,7 @@ function OffersPanel() {
   const loadOffers = useCallback(async () => {
     const { data } = await supabase
       .from("product_offers")
-      .select("id, product_id, offer_type, discount_percent, addon_description, is_active, expires_at")
+      .select("id, product_id, offer_type, discount_percent, addon_description, description, is_active, expires_at")
       .order("created_at", { ascending: false });
     if (data) setOffers(data as _OfferRow[]);
     setOffersLoading(false);
@@ -2139,6 +2139,7 @@ function OffersPanel() {
       offer_type:        form.offer_type,
       discount_percent:  form.offer_type === "price_discount" ? Number(form.discount_percent) : null,
       addon_description: form.offer_type === "free_addon" ? form.addon_description.trim() : null,
+      description:       form.description.trim() || null,
       is_active:         true,
       expires_at:        form.expires_at || null,
     });
@@ -2358,6 +2359,17 @@ function OffersPanel() {
                           </div>
                         )}
                         <div>
+                          <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>وصف العرض (اختياري)</label>
+                          <textarea
+                            value={form.description}
+                            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                            rows={2}
+                            placeholder="مثال: خصم خاص لفترة محدودة على البيتزا الكبيرة"
+                            className="w-full px-3 py-2 text-sm rounded-xl outline-none resize-none"
+                            style={{ border: `1.5px solid ${C.border}`, color: C.text, fontFamily: "inherit", background: "#fff" }}
+                          />
+                        </div>
+                        <div>
                           <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>تاريخ الانتهاء (اختياري)</label>
                           <input
                             type="datetime-local"
@@ -2445,6 +2457,9 @@ function OffersPanel() {
                         </span>
                       )}
                     </div>
+                    {offer.description && (
+                      <p className="text-xs mt-0.5 truncate" style={{ color: C.faint }}>{offer.description}</p>
+                    )}
                     {offer.expires_at && (
                       <p className="text-xs mt-0.5" style={{ color: C.faint }}>
                         ينتهي: {new Date(offer.expires_at).toLocaleDateString("ar-JO")}

@@ -25,6 +25,7 @@ interface _OfferWithProduct {
   offer_type: "price_discount" | "free_delivery" | "free_addon";
   discount_percent: number | null;
   addon_description: string | null;
+  description: string | null;
   expires_at: string | null;
   products: {
     id: string;
@@ -70,7 +71,7 @@ export default function OffersPage() {
       const [{ data }, { data: settingsData }, { data: comboData, error: comboError }] = await Promise.all([
         supabase
           .from("product_offers")
-          .select("id, offer_type, discount_percent, addon_description, expires_at, products(id, name, category, price, emoji, image_url)")
+          .select("id, offer_type, discount_percent, addon_description, description, expires_at, products(id, name, category, price, emoji, image_url)")
           .eq("is_active", true)
           .or(`expires_at.is.null,expires_at.gt.${now}`)
           .order("created_at", { ascending: false }),
@@ -342,6 +343,9 @@ export default function OffersPage() {
                       {prod.name}
                     </h3>
                     <p className="text-xs mb-2" style={{ color: C.faint }}>{prod.category}</p>
+                    {offer.description && (
+                      <p className="text-xs mb-2 leading-relaxed" style={{ color: C.muted }}>{offer.description}</p>
+                    )}
 
                     <div className="mt-auto flex items-center justify-between gap-2">
                       <div className="flex items-baseline gap-1 flex-wrap">
