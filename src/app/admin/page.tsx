@@ -2068,6 +2068,7 @@ function OffersPanel() {
   const [openFormId,    setOpenFormId]    = useState<string | null>(null);
   const [form,          setForm]          = useState(BLANK_OFFER);
   const [saving,        setSaving]        = useState(false);
+  const [offerSaveError, setOfferSaveError] = useState<string | null>(null);
   const [offers,        setOffers]        = useState<_OfferRow[]>([]);
   const [offersLoading, setOffersLoading] = useState(true);
   const [togglingId,    setTogglingId]    = useState<string | null>(null);
@@ -2179,9 +2180,9 @@ function OffersPanel() {
   };
 
   const SIMPLE_OFFER_ID = "__simple__";
-  const openForm = (id: string) => { setOpenFormId(id); setForm(BLANK_OFFER); resetImage(); };
-  const openSimpleForm = () => { setOpenFormId(SIMPLE_OFFER_ID); setForm({ ...BLANK_OFFER, offer_type: "simple" }); resetImage(); };
-  const closeForm = () => { setOpenFormId(null); resetImage(); };
+  const openForm = (id: string) => { setOpenFormId(id); setForm(BLANK_OFFER); resetImage(); setOfferSaveError(null); };
+  const openSimpleForm = () => { setOpenFormId(SIMPLE_OFFER_ID); setForm({ ...BLANK_OFFER, offer_type: "simple" }); resetImage(); setOfferSaveError(null); };
+  const closeForm = () => { setOpenFormId(null); resetImage(); setOfferSaveError(null); };
 
   const saveOffer = async () => {
     if (!openFormId) return;
@@ -2189,6 +2190,7 @@ function OffersPanel() {
     if (form.offer_type === "free_addon" && !form.addon_description.trim()) return;
     if (form.offer_type === "simple" && (!form.name.trim() || !form.price)) return;
     setSaving(true);
+    setOfferSaveError(null);
     const { data, error } = await supabase.from("product_offers").insert({
       product_id:        form.offer_type === "simple" ? null : openFormId,
       offer_type:        form.offer_type,
@@ -2200,7 +2202,7 @@ function OffersPanel() {
       is_active:         true,
       expires_at:        form.expires_at || null,
     }).select("id").single();
-    if (error || !data) { setSaving(false); return; }
+    if (error || !data) { setOfferSaveError(error?.message ?? "فشل حفظ العرض"); setSaving(false); return; }
     if (form.offer_type === "simple" && imageFile) {
       const url = await uploadOfferImage(data.id);
       if (url) await supabase.from("product_offers").update({ image_url: url }).eq("id", data.id);
@@ -2249,6 +2251,11 @@ function OffersPanel() {
 
   const renderOfferFormFields = () => (
     <div className="px-5 pb-4 pt-2 space-y-3" style={{ background: `${C.primary}05` }}>
+      {offerSaveError && (
+        <div className="rounded-xl px-4 py-2.5 text-xs font-bold" style={{ background: "#FEE2E2", border: "1px solid #FCA5A5", color: "#DC2626" }}>
+          فشل الحفظ: {offerSaveError}
+        </div>
+      )}
       <div>
         <label className="text-xs font-bold block mb-1" style={{ color: C.muted }}>نوع العرض</label>
         <select
