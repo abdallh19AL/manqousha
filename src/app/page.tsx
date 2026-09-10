@@ -394,37 +394,40 @@ export default function HomePage() {
         </>
       )}
 
-      {/* Pause banner */}
-      {!settingsLoading && ordersPaused && !bannerDismissed && (
-        <div
-          className="flex items-center gap-3 px-4 py-3"
-          style={{ background: "#FFF4EE", borderBottom: `2px solid ${C.primary}44` }}
-        >
-          <p className="flex-1 text-sm font-black" style={{ color: C.primary }}>
-            {pauseMessage}
-          </p>
-          <button
-            onClick={() => setBannerDismissed(true)}
-            style={{ color: C.faint }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = C.primary)}
-            onMouseLeave={(e) => (e.currentTarget.style.color = C.faint)}
+      {/* Banners below the fixed navbar (h-14 mobile / h-16 desktop) */}
+      <div className="mt-14 md:mt-16">
+        {/* Pause banner */}
+        {!settingsLoading && ordersPaused && !bannerDismissed && (
+          <div
+            className="flex items-center gap-3 px-4 py-3"
+            style={{ background: "#FFF4EE", borderBottom: `2px solid ${C.primary}44` }}
           >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+            <p className="flex-1 text-sm font-black" style={{ color: C.primary }}>
+              {pauseMessage}
+            </p>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              style={{ color: C.faint }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = C.primary)}
+              onMouseLeave={(e) => (e.currentTarget.style.color = C.faint)}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
-      {/* Delivery discount banner */}
-      {!settingsLoading && deliveryDiscountEnabled && (
-        <div
-          className="flex items-center justify-center gap-2 px-4 py-2 text-center"
-          style={{ background: `linear-gradient(90deg, ${C.primary}, ${C.gold})` }}
-        >
-          <span className="text-sm font-black text-white">
-            🚚 اطلب بـ {deliveryDiscountMinSubtotal.toFixed(2)} د.أ أو أكثر واحصل على خصم {deliveryDiscountAmount.toFixed(2)} د.أ على التوصيل!
-          </span>
-        </div>
-      )}
+        {/* Delivery discount banner */}
+        {!settingsLoading && deliveryDiscountEnabled && (
+          <div
+            className="flex items-center justify-center gap-2 px-4 py-2 text-center"
+            style={{ background: `linear-gradient(90deg, ${C.primary}, ${C.gold})` }}
+          >
+            <span className="text-sm font-black text-white">
+              🚚 اطلب بـ {deliveryDiscountMinSubtotal.toFixed(2)} د.أ أو أكثر واحصل على خصم {deliveryDiscountAmount.toFixed(2)} د.أ على التوصيل!
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* ── Compact brand header ── */}
       <div className="pt-16 md:pt-20 pb-6 px-4 text-center relative">
