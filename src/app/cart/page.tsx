@@ -223,6 +223,13 @@ export default function CartPage() {
     : selectedFee;
   const effectiveDeliveryFee = orderType === "pickup" ? 0 : (freeDelivery || freeDeliveryOffer) ? 0 : discountedFee;
   const grandTotal = subtotal + effectiveDeliveryFee;
+  const deliveryDiscountRemaining =
+    deliveryDiscountEnabled &&
+    orderType === "delivery" &&
+    !(freeDelivery || freeDeliveryOffer) &&
+    subtotal < deliveryDiscountMinSubtotal
+      ? deliveryDiscountMinSubtotal - subtotal
+      : null;
 
   // ── Validation ────────────────────────────────────────────────
   const nameError     = form.customer_name.trim().length < 3
@@ -758,6 +765,22 @@ export default function CartPage() {
             </span>
           </div>
         </div>
+
+        {/* ══ Delivery discount unlock banner ══ */}
+        {deliveryDiscountRemaining !== null && (
+          <div
+            className="rounded-2xl p-4 mb-5 flex items-center gap-3"
+            style={{
+              background: `linear-gradient(135deg, ${C.primary}12, ${C.gold}12)`,
+              border:     `1.5px solid ${C.gold}55`,
+            }}
+          >
+            <span className="text-2xl shrink-0">🚚</span>
+            <p className="text-sm font-black flex-1" style={{ color: C.text }}>
+              أضف {deliveryDiscountRemaining.toFixed(2)} د.أ فقط واحصل على خصم {deliveryDiscountAmount.toFixed(2)} د.أ على التوصيل! 🚚
+            </p>
+          </div>
+        )}
 
         {/* ══ Delivery form ══ */}
         <form

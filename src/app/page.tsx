@@ -83,7 +83,10 @@ export default function HomePage() {
   const [bannerPhase,    setBannerPhase]    = useState<"hidden" | "ball" | "explode" | "banner">("hidden");
   const [offersMap,      setOffersMap]      = useState<Map<string, ProductOffer>>(new Map());
 
-  const { ordersPaused, pauseMessage, loading: settingsLoading } = useStoreSettings();
+  const {
+    ordersPaused, pauseMessage, loading: settingsLoading,
+    deliveryDiscountEnabled, deliveryDiscountMinSubtotal, deliveryDiscountAmount,
+  } = useStoreSettings();
 
   useEffect(() => {
     async function load() {
@@ -408,6 +411,18 @@ export default function HomePage() {
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* Delivery discount banner */}
+      {!settingsLoading && deliveryDiscountEnabled && (
+        <div
+          className="flex items-center justify-center gap-2 px-4 py-2 text-center"
+          style={{ background: `linear-gradient(90deg, ${C.primary}, ${C.gold})` }}
+        >
+          <span className="text-sm font-black text-white">
+            🚚 اطلب بـ {deliveryDiscountMinSubtotal.toFixed(2)} د.أ أو أكثر واحصل على خصم {deliveryDiscountAmount.toFixed(2)} د.أ على التوصيل!
+          </span>
         </div>
       )}
 

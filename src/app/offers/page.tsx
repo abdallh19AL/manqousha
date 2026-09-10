@@ -48,6 +48,9 @@ export default function OffersPage() {
   const [userStreak,   setUserStreak]   = useState<number>(0);
   const [streakLoaded, setStreakLoaded] = useState(false);
   const [streakOfferEnabled, setStreakOfferEnabled] = useState(true);
+  const [deliveryDiscountEnabled,     setDeliveryDiscountEnabled]     = useState(false);
+  const [deliveryDiscountMinSubtotal, setDeliveryDiscountMinSubtotal] = useState(5);
+  const [deliveryDiscountAmount,      setDeliveryDiscountAmount]      = useState(1);
   const [bundleCombos, setBundleCombos] = useState<ComboDealWithSteps[]>([]);
   const [activeCombo,  setActiveCombo]  = useState<ComboDealWithSteps | null>(null);
   const addSimpleOfferItem = useCartStore((s) => s.addSimpleOfferItem);
@@ -82,7 +85,7 @@ export default function OffersPage() {
           .order("created_at", { ascending: false }),
         supabase
           .from("store_settings")
-          .select("streak_enabled")
+          .select("streak_enabled, delivery_discount_enabled, delivery_discount_min_subtotal, delivery_discount_amount")
           .eq("id", 1)
           .single(),
         supabase
@@ -102,7 +105,11 @@ export default function OffersPage() {
       }
       setOffers([...simpleOffers, ...Array.from(seen.values())]);
       if (settingsData) {
-        setStreakOfferEnabled(Boolean((settingsData as Record<string, unknown>).streak_enabled ?? true));
+        const s = settingsData as Record<string, unknown>;
+        setStreakOfferEnabled(Boolean(s.streak_enabled ?? true));
+        setDeliveryDiscountEnabled(Boolean(s.delivery_discount_enabled ?? false));
+        setDeliveryDiscountMinSubtotal(Number(s.delivery_discount_min_subtotal ?? 5));
+        setDeliveryDiscountAmount(Number(s.delivery_discount_amount ?? 1));
       }
       if (comboError) console.error("Failed to fetch bundle combos:", comboError);
       if (comboData) {
@@ -281,6 +288,30 @@ export default function OffersPage() {
                       )}
                     </>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Delivery discount offer card */}
+            {deliveryDiscountEnabled && (
+              <div
+                className="col-span-full rounded-2xl overflow-hidden"
+                style={{ border: `2px solid ${C.gold}`, background: "#FFFBF2" }}
+              >
+                <div
+                  className="px-4 py-2"
+                  style={{ background: `linear-gradient(135deg, ${C.primary}, ${C.gold})` }}
+                >
+                  <span className="text-xs font-black text-white">🚚 خصم التوصيل</span>
+                </div>
+                <div className="p-4 text-center">
+                  <div className="text-4xl mb-2">🚚</div>
+                  <h3 className="font-black text-lg mb-1" style={{ color: C.text }}>
+                    وفّر على رسوم التوصيل
+                  </h3>
+                  <p className="text-sm" style={{ color: C.muted }}>
+                    عند الطلب بـ {deliveryDiscountMinSubtotal.toFixed(2)} د.أ أو أكثر، احصل على خصم {deliveryDiscountAmount.toFixed(2)} د.أ على رسوم التوصيل تلقائياً
+                  </p>
                 </div>
               </div>
             )}
