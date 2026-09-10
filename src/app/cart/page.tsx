@@ -86,7 +86,10 @@ export default function CartPage() {
 
   const { user } = useAuth();
   const [saveProfile, setSaveProfile] = useState(true);
-  const { ordersPaused, pauseMessage, outsideHours, openingTime, electronicPaymentEnabled } = useStoreSettings();
+  const {
+    ordersPaused, pauseMessage, outsideHours, openingTime, electronicPaymentEnabled,
+    deliveryDiscountEnabled, deliveryDiscountMinSubtotal, deliveryDiscountAmount,
+  } = useStoreSettings();
   const isStoreClosed = ordersPaused || outsideHours;
 
   // Reset payment method if electronic gets disabled remotely
@@ -210,7 +213,15 @@ export default function CartPage() {
   // ── Delivery calculation ──────────────────────────────────────
   const subtotal    = getTotal();
   const selectedFee = selectedZone ? (zoneFees[selectedZone] ?? 0) : 0;
-  const effectiveDeliveryFee = orderType === "pickup" ? 0 : (freeDelivery || freeDeliveryOffer) ? 0 : selectedFee;
+  const deliveryDiscountApplies =
+    deliveryDiscountEnabled &&
+    orderType === "delivery" &&
+    !(freeDelivery || freeDeliveryOffer) &&
+    subtotal >= deliveryDiscountMinSubtotal;
+  const discountedFee = deliveryDiscountApplies
+    ? Math.max(0, selectedFee - deliveryDiscountAmount)
+    : selectedFee;
+  const effectiveDeliveryFee = orderType === "pickup" ? 0 : (freeDelivery || freeDeliveryOffer) ? 0 : discountedFee;
   const grandTotal = subtotal + effectiveDeliveryFee;
 
   // ── Validation ────────────────────────────────────────────────
@@ -1157,10 +1168,22 @@ export default function CartPage() {
                       <p className="text-xs mt-0.5" style={{ color: C.faint }}>
                         {orderType === "pickup" ? "📍 استلام من المطعم" : selectedZone ? `📍 ${selectedZone}` : null}
                       </p>
+                      {deliveryDiscountApplies && (
+                        <p className="text-xs mt-0.5 font-bold" style={{ color: "#22C55E" }}>
+                          توصيل مخفّض لطلبك! 🎉
+                        </p>
+                      )}
                     </div>
-                    <span className="font-bold" style={{ color: (freeDelivery || freeDeliveryOffer) ? "#22C55E" : C.gold }}>
-                      {(freeDelivery || freeDeliveryOffer) ? "مجاني" : `+ ${effectiveDeliveryFee.toFixed(2)} د.أ`}
-                    </span>
+                    <div className="text-left">
+                      {deliveryDiscountApplies && (
+                        <span className="block text-xs line-through" style={{ color: C.faint }}>
+                          {selectedFee.toFixed(2)} د.أ
+                        </span>
+                      )}
+                      <span className="font-bold" style={{ color: (freeDelivery || freeDeliveryOffer) ? "#22C55E" : deliveryDiscountApplies ? "#22C55E" : C.gold }}>
+                        {(freeDelivery || freeDeliveryOffer) ? "مجاني" : `+ ${effectiveDeliveryFee.toFixed(2)} د.أ`}
+                      </span>
+                    </div>
                   </div>
 
                   <div

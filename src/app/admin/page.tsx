@@ -2089,6 +2089,13 @@ function OffersPanel() {
   const [savingStreak,  setSavingStreak]  = useState(false);
   const [streakSaved,   setStreakSaved]   = useState(false);
 
+  // Note: requires delivery_discount_enabled/min_subtotal/amount columns in store_settings
+  const [deliveryDiscountEnabled,     setDeliveryDiscountEnabled]     = useState(false);
+  const [deliveryDiscountMinSubtotal, setDeliveryDiscountMinSubtotal] = useState(5);
+  const [deliveryDiscountAmount,      setDeliveryDiscountAmount]      = useState(1);
+  const [savingDeliveryDiscount,      setSavingDeliveryDiscount]      = useState(false);
+  const [deliveryDiscountSaved,       setDeliveryDiscountSaved]       = useState(false);
+
   const loadProducts = useCallback(async () => {
     const { data } = await supabase
       .from("products")
@@ -2112,13 +2119,17 @@ function OffersPanel() {
   useEffect(() => {
     supabase
       .from("store_settings")
-      .select("streak_enabled, streak_count")
+      .select("streak_enabled, streak_count, delivery_discount_enabled, delivery_discount_min_subtotal, delivery_discount_amount")
       .eq("id", 1)
       .single()
       .then(({ data }) => {
         if (data) {
-          setStreakEnabled(Boolean((data as Record<string, unknown>).streak_enabled ?? true));
-          setStreakCount(Number((data as Record<string, unknown>).streak_count ?? 4));
+          const d = data as Record<string, unknown>;
+          setStreakEnabled(Boolean(d.streak_enabled ?? true));
+          setStreakCount(Number(d.streak_count ?? 4));
+          setDeliveryDiscountEnabled(Boolean(d.delivery_discount_enabled ?? false));
+          setDeliveryDiscountMinSubtotal(Number(d.delivery_discount_min_subtotal ?? 5));
+          setDeliveryDiscountAmount(Number(d.delivery_discount_amount ?? 1));
         }
       });
   }, []);
@@ -2247,6 +2258,21 @@ function OffersPanel() {
     setSavingStreak(false);
     setStreakSaved(true);
     setTimeout(() => setStreakSaved(false), 2000);
+  };
+
+  const saveDeliveryDiscountSettings = async () => {
+    setSavingDeliveryDiscount(true);
+    await supabase
+      .from("store_settings")
+      .update({
+        delivery_discount_enabled:      deliveryDiscountEnabled,
+        delivery_discount_min_subtotal: deliveryDiscountMinSubtotal,
+        delivery_discount_amount:       deliveryDiscountAmount,
+      })
+      .eq("id", 1);
+    setSavingDeliveryDiscount(false);
+    setDeliveryDiscountSaved(true);
+    setTimeout(() => setDeliveryDiscountSaved(false), 2000);
   };
 
   const renderOfferFormFields = () => (
@@ -2430,6 +2456,67 @@ function OffersPanel() {
             style={{ background: streakSaved ? "#22C55E" : C.primary, color: "#fff" }}
           >
             {streakSaved ? "✓ تم الحفظ" : savingStreak ? "جاري الحفظ..." : "حفظ إعدادات العرض"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Delivery discount card ── */}
+      <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.border}`, background: "#fff" }}>
+        <div className="px-4 py-3 flex items-center justify-between" style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+          <span className="text-sm font-black" style={{ color: C.gold }}>🚚 خصم رسوم التوصيل</span>
+          <button
+            onClick={() => setDeliveryDiscountEnabled((v) => !v)}
+            dir="ltr"
+            className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors"
+            style={{ background: deliveryDiscountEnabled ? "#22C55E" : "#D1D5DB" }}
+          >
+            <span
+              className="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform"
+              style={{ transform: deliveryDiscountEnabled ? "translateX(18px)" : "translateX(2px)" }}
+            />
+          </button>
+        </div>
+        <div className="p-4 space-y-3">
+          <p className="text-xs" style={{ color: C.muted }}>
+            إذا تجاوز المجموع الفرعي (قبل التوصيل) الحد الأدنى، يُخصم مبلغ ثابت من رسوم التوصيل
+          </p>
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-bold shrink-0" style={{ color: C.muted }}>
+              الحد الأدنى للمجموع الفرعي (د.أ):
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={0.25}
+              value={deliveryDiscountMinSubtotal}
+              onChange={(e) => setDeliveryDiscountMinSubtotal(Number(e.target.value))}
+              dir="ltr"
+              className="w-20 px-3 py-1.5 text-sm rounded-lg outline-none text-center font-black"
+              style={{ border: `1px solid ${C.border}`, color: C.primary }}
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-bold shrink-0" style={{ color: C.muted }}>
+              قيمة الخصم عن التوصيل (د.أ):
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={0.25}
+              value={deliveryDiscountAmount}
+              onChange={(e) => setDeliveryDiscountAmount(Number(e.target.value))}
+              dir="ltr"
+              className="w-20 px-3 py-1.5 text-sm rounded-lg outline-none text-center font-black"
+              style={{ border: `1px solid ${C.border}`, color: C.primary }}
+            />
+          </div>
+          <button
+            onClick={saveDeliveryDiscountSettings}
+            disabled={savingDeliveryDiscount}
+            className="w-full py-2 rounded-xl font-bold text-sm transition-all disabled:opacity-50"
+            style={{ background: deliveryDiscountSaved ? "#22C55E" : C.primary, color: "#fff" }}
+          >
+            {deliveryDiscountSaved ? "✓ تم الحفظ" : savingDeliveryDiscount ? "جاري الحفظ..." : "حفظ إعدادات الخصم"}
           </button>
         </div>
       </div>

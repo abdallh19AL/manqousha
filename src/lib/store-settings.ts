@@ -27,6 +27,9 @@ export interface StoreSettingsState {
   outsideHours:             boolean;
   openingTime:              string;
   electronicPaymentEnabled: boolean;
+  deliveryDiscountEnabled:      boolean;
+  deliveryDiscountMinSubtotal:  number;
+  deliveryDiscountAmount:       number;
 }
 
 export function useStoreSettings(): StoreSettingsState {
@@ -37,6 +40,9 @@ export function useStoreSettings(): StoreSettingsState {
   const [closingTime,              setClosingTime]              = useState("03:00");
   const [autoCloseEnabled,         setAutoCloseEnabled]         = useState(true);
   const [electronicPaymentEnabled, setElectronicPaymentEnabled] = useState(true);
+  const [deliveryDiscountEnabled,     setDeliveryDiscountEnabled]     = useState(false);
+  const [deliveryDiscountMinSubtotal, setDeliveryDiscountMinSubtotal] = useState(5);
+  const [deliveryDiscountAmount,      setDeliveryDiscountAmount]      = useState(1);
 
   // Unique channel name per hook instance so multiple pages don't collide.
   const channelId = useRef(`store-settings-${Math.random().toString(36).slice(2)}`);
@@ -44,7 +50,7 @@ export function useStoreSettings(): StoreSettingsState {
   useEffect(() => {
     supabase
       .from("store_settings")
-      .select("orders_paused, pause_message, opening_time, closing_time, auto_close_enabled, electronic_payment_enabled")
+      .select("orders_paused, pause_message, opening_time, closing_time, auto_close_enabled, electronic_payment_enabled, delivery_discount_enabled, delivery_discount_min_subtotal, delivery_discount_amount")
       .eq("id", 1)
       .single()
       .then(({ data }) => {
@@ -55,6 +61,9 @@ export function useStoreSettings(): StoreSettingsState {
           setClosingTime(String(data.closing_time ?? "03:00:00").slice(0, 5));
           setAutoCloseEnabled(Boolean(data.auto_close_enabled ?? true));
           setElectronicPaymentEnabled(Boolean(data.electronic_payment_enabled ?? true));
+          setDeliveryDiscountEnabled(Boolean(data.delivery_discount_enabled ?? false));
+          setDeliveryDiscountMinSubtotal(Number(data.delivery_discount_min_subtotal ?? 5));
+          setDeliveryDiscountAmount(Number(data.delivery_discount_amount ?? 1));
         }
         setLoading(false);
       });
@@ -72,6 +81,9 @@ export function useStoreSettings(): StoreSettingsState {
           setClosingTime(String(d.closing_time ?? "03:00:00").slice(0, 5));
           setAutoCloseEnabled(Boolean(d.auto_close_enabled ?? true));
           setElectronicPaymentEnabled(Boolean(d.electronic_payment_enabled ?? true));
+          setDeliveryDiscountEnabled(Boolean(d.delivery_discount_enabled ?? false));
+          setDeliveryDiscountMinSubtotal(Number(d.delivery_discount_min_subtotal ?? 5));
+          setDeliveryDiscountAmount(Number(d.delivery_discount_amount ?? 1));
         }
       )
       .subscribe();
@@ -84,5 +96,8 @@ export function useStoreSettings(): StoreSettingsState {
     [autoCloseEnabled, openingTime, closingTime],
   );
 
-  return { ordersPaused, pauseMessage, loading, outsideHours, openingTime, electronicPaymentEnabled };
+  return {
+    ordersPaused, pauseMessage, loading, outsideHours, openingTime, electronicPaymentEnabled,
+    deliveryDiscountEnabled, deliveryDiscountMinSubtotal, deliveryDiscountAmount,
+  };
 }
