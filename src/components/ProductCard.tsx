@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useCartStore } from "@/lib/store";
 import ProductModal from "./ProductModal";
+import { getDiscountRatio, applyDiscount } from "@/lib/discount";
 import type { Product, ProductOffer } from "@/types";
 
 /* Warm brand-adjacent gradients — orange/gold family, nothing pink */
@@ -52,11 +53,12 @@ function ProductCardComponent({ product, offer }: { product: Product; offer?: Pr
   const [added,     setAdded]     = useState(false);
   const cfg = CATEGORY_CONFIG[product.category] ?? DEFAULT_CFG;
 
-  const discountRatio = offer?.offer_type === "price_discount" && offer.discount_percent !== null
-    ? (100 - offer.discount_percent) / 100
-    : 1;
-  const calcDiscounted = (p: number) => Math.round(p * discountRatio * 100) / 100;
+  const discountRatio = getDiscountRatio(offer);
+  const calcDiscounted = (p: number) => applyDiscount(p, discountRatio);
 
+  const originalPriceLabel = product.sizes
+    ? `من ${product.sizes[0].price.toFixed(2)}`
+    : product.price.toFixed(2);
   const priceLabel = product.sizes
     ? `من ${calcDiscounted(product.sizes[0].price).toFixed(2)}`
     : calcDiscounted(product.price).toFixed(2);
@@ -251,9 +253,9 @@ function ProductCardComponent({ product, offer }: { product: Product; offer?: Pr
           <div className="mt-auto flex items-center justify-between gap-2 pt-1.5">
             {/* Price — larger and bolder */}
             <div className="flex items-baseline gap-1 flex-wrap">
-              {discountRatio < 1 && !product.sizes && (
+              {discountRatio < 1 && (
                 <span className="text-xs line-through" style={{ color: "#9B8B73" }}>
-                  {product.price.toFixed(2)}
+                  {originalPriceLabel}
                 </span>
               )}
               <span
@@ -298,6 +300,7 @@ function ProductCardComponent({ product, offer }: { product: Product; offer?: Pr
       {showModal && (
         <ProductModal
           product={product}
+          offer={offer}
           onClose={() => setShowModal(false)}
           onAdd={handleAdd}
         />

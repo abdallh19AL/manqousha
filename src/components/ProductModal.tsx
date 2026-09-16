@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Product } from "@/types";
+import { getDiscountRatio, applyDiscount } from "@/lib/discount";
+import type { Product, ProductOffer } from "@/types";
 
 interface Addon { label: string; extra: number; }
 interface DoughOption { label: string; extra: number; }
@@ -30,6 +31,7 @@ function getRollAddons(product: Product): Addon[] {
 
 interface Props {
   product: Product;
+  offer?: ProductOffer;
   onClose: () => void;
   onAdd: (
     product: Product,
@@ -39,7 +41,7 @@ interface Props {
   ) => void;
 }
 
-export default function ProductModal({ product, onClose, onAdd }: Props) {
+export default function ProductModal({ product, offer, onClose, onAdd }: Props) {
   const [mounted, setMounted] = useState(false);
   const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] ?? undefined);
 
@@ -73,7 +75,14 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
 
   const activeAddons = rollAddons.filter((a) => checkedAddons.has(a.label));
   const addonsExtra  = activeAddons.reduce((s, a) => s + a.extra, 0);
-  const effectivePrice = (selectedSize?.price ?? product.price) + (selectedDoughType?.extra ?? 0) + addonsExtra;
+
+  const discountRatio = getDiscountRatio(offer);
+  const hasDiscount    = discountRatio < 1;
+  const basePrice      = selectedSize?.price ?? product.price;
+  const discountedBase = applyDiscount(basePrice, discountRatio);
+
+  const originalPrice  = basePrice + (selectedDoughType?.extra ?? 0) + addonsExtra;
+  const effectivePrice = discountedBase + (selectedDoughType?.extra ?? 0) + addonsExtra;
 
   const modal = (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
@@ -107,13 +116,23 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
         </div>
 
         <div className="px-5 pb-6 pt-4">
-          {/* Category badge */}
-          <span
-            className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full mb-3"
-            style={{ background: "#F7F5F2", color: "#E8622A", border: "1px solid #E5E0D8" }}
-          >
-            {product.category}
-          </span>
+          {/* Category + discount badges */}
+          <div className="flex items-center gap-2 flex-wrap mb-3">
+            <span
+              className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full"
+              style={{ background: "#F7F5F2", color: "#E8622A", border: "1px solid #E5E0D8" }}
+            >
+              {product.category}
+            </span>
+            {hasDiscount && offer && (
+              <span
+                className="inline-block text-xs font-black px-2.5 py-1 rounded-full"
+                style={{ background: "#FEE2E2", color: "#EF4444" }}
+              >
+                {`خصم ${offer.discount_percent}%`}
+              </span>
+            )}
+          </div>
 
           {/* Name */}
           <h2 className="text-2xl font-black leading-snug mb-2" style={{ color: "#1A1208" }}>
@@ -136,6 +155,7 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
               <div className="flex flex-wrap gap-2">
                 {product.sizes.map((size) => {
                   const active = selectedSize?.label === size.label;
+                  const sizeDiscounted = applyDiscount(size.price, discountRatio);
                   return (
                     <button
                       key={size.label}
@@ -148,8 +168,21 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
                       }
                     >
                       <span>{size.label}</span>
-                      <span className="text-xs font-normal mt-0.5" style={{ color: active ? "rgba(255,255,255,0.85)" : "#9B8B73" }}>
-                        {size.price.toFixed(2)} د.أ
+                      <span className="flex items-baseline gap-1 mt-0.5">
+                        {hasDiscount && (
+                          <span
+                            className="text-[11px] font-normal line-through"
+                            style={{ color: active ? "rgba(255,255,255,0.65)" : "#9B8B73" }}
+                          >
+                            {size.price.toFixed(2)}
+                          </span>
+                        )}
+                        <span
+                          className="text-xs font-normal"
+                          style={{ color: active ? "rgba(255,255,255,0.85)" : hasDiscount ? "#22C55E" : "#9B8B73" }}
+                        >
+                          {sizeDiscounted.toFixed(2)} د.أ
+                        </span>
                       </span>
                     </button>
                   );
@@ -236,9 +269,16 @@ export default function ProductModal({ product, onClose, onAdd }: Props) {
           <div className="flex items-center gap-4 mt-2">
             <div className="flex-1">
               <p className="text-xs mb-0.5" style={{ color: "#9B8B73" }}>السعر</p>
-              <p className="text-2xl font-black" style={{ color: "#E8622A" }}>
-                {effectivePrice.toFixed(2)}&nbsp;د.أ
-              </p>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                {hasDiscount && (
+                  <span className="text-sm font-bold line-through" style={{ color: "#9B8B73" }}>
+                    {originalPrice.toFixed(2)}&nbsp;د.أ
+                  </span>
+                )}
+                <p className="text-2xl font-black" style={{ color: hasDiscount ? "#22C55E" : "#E8622A" }}>
+                  {effectivePrice.toFixed(2)}&nbsp;د.أ
+                </p>
+              </div>
             </div>
             <button
               onClick={() => onAdd(
