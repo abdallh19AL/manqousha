@@ -153,7 +153,7 @@ export default function Footer({ variant = "dark" }: { variant?: "dark" | "light
               </li>
               <li className="flex items-center gap-2 justify-center md:justify-end">
                 <Clock className="w-4 h-4 shrink-0" />
-                <span>١٠:٠٠ ص — ١٢:٠٠ م</span>
+                <span>٨:٠٠ ص — ٢:٠٠ ص</span>
               </li>
             </ul>
           </div>
